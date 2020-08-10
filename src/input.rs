@@ -113,7 +113,7 @@ impl Input {
         }
     }
 
-    pub fn handle_mouse_move(&mut self, position: winit::dpi::PhysicalPosition<i32>) {
+    pub fn handle_mouse_move(&mut self, position: winit::dpi::PhysicalPosition<f64>) {
         self.mouse_pos = Point2::new(position.x as f32, position.y as f32);
     }
 

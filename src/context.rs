@@ -3,6 +3,7 @@ use winit::{
     window::Window,
 };
 
+use crate::assets;
 use crate::graphics;
 use crate::state;
 use crate::input;
@@ -41,16 +42,21 @@ pub struct MainContext {
     gfx: graphics::Graphics,
     state: Box<dyn state::State>,
     ctx: Context,
+    assets: assets::Assets,
 }
 
 impl MainContext {
     pub async fn new(window: Rc<Window>) -> Self {
         let gfx = graphics::Graphics::new(&window).await;
-        let state = Box::new(state::game::GameState::new(&gfx));
+        let ctx = Context::new(window);
+
+        let mut assets = assets::Assets::new();
+        let state = Box::new(state::game::GameState::new(&mut assets, &gfx));
         Self {
             gfx,
             state,
-            ctx: Context::new(window),
+            ctx,
+            assets,
         }
     }
 
@@ -61,8 +67,8 @@ impl MainContext {
 
     pub fn input(&mut self, event: &WindowEvent) -> bool {
         match event {
-            WindowEvent::KeyboardInput { 
-                input: KeyboardInput { 
+            WindowEvent::KeyboardInput {
+                input: KeyboardInput {
                     virtual_keycode: Some(virtual_code),
                     state,
                     ..
@@ -77,7 +83,7 @@ impl MainContext {
                 }
                 ElementState::Released => {
                     self.state.handle_key_up(*virtual_code) || {
-                        self.ctx.input.handle_key_down(*virtual_code);
+                        self.ctx.input.handle_key_up(*virtual_code);
                         false
                     }
                 }
@@ -126,13 +132,13 @@ impl MainContext {
         self.ctx.game_time = game_time;
         self.ctx.delta_time = delta_time;
 
-        self.state.update(&self.ctx);
+        self.state.update(&self.assets, &self.ctx);
 
         self.ctx.input.clear();
     }
 
     pub fn draw(&mut self) {
-        self.state.draw(&mut self.gfx);
+        self.state.draw(&self.assets, &mut self.gfx);
     }
 }
 

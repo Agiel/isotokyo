@@ -18,6 +18,7 @@ pub const MAGENTA: (f32, f32, f32, f32) = (1.0, 0.0, 1.0, 1.0);
 pub const CAMERA_DISTANCE: f32 = 20.0;
 pub const PIXELS_PER_UNIT: f32 = 64.0;
 
+#[derive(Copy, Clone, Debug)]
 pub struct Rect {
     pub position: Point2,
     pub size: Vector2,
@@ -32,6 +33,7 @@ impl Rect {
     }
 }
 
+#[derive(Debug)]
 pub struct Plane {
     pub point: Point3,
     pub normal: Vector3,
@@ -46,6 +48,7 @@ impl Plane {
     }
 }
 
+#[derive(Debug)]
 pub struct Ray {
     pub start: Point3,
     pub direction: Vector3,

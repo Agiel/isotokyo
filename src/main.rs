@@ -11,6 +11,7 @@ mod state;
 mod context;
 mod input;
 mod config;
+mod assets;
 
 const TIME_STEP: f64 = 1.0 / 60.0;
 
@@ -64,7 +65,7 @@ fn main() {
             Event::RedrawRequested(_) => {
                 let frame_time = current_time.elapsed().unwrap().as_secs_f64();
                 current_time = std::time::SystemTime::now();
-                
+
                 accumulator += frame_time;
 
                 while accumulator >= TIME_STEP {

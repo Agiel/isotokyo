@@ -23,17 +23,15 @@ pub struct ScreenTargets<'a> {
     pub depth: &'a wgpu::TextureView,
 }
 
-pub type Texture = wgpu::BindGroup;
-
 struct InstanceArray {
     data: Vec<object::InstanceRaw>,
-    texture: Arc<Texture>,
+    texture: Arc<texture::Texture>,
     buffer: Option<wgpu::Buffer>,
 }
 
 struct Batcher {
-    instances: HashMap<*const Texture, InstanceArray>,
-    instances_alpha: HashMap<*const Texture, InstanceArray>,
+    instances: HashMap<*const texture::Texture, InstanceArray>,
+    instances_alpha: HashMap<*const texture::Texture, InstanceArray>,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
 }
@@ -56,7 +54,7 @@ impl Batcher {
         }
     }
 
-    pub fn add_quad(&mut self, texture: &Arc<Texture>, instance: object::Instance, alpha: bool) {
+    pub fn add_quad(&mut self, texture: &Arc<texture::Texture>, instance: object::Instance, alpha: bool) {
         let instances = match alpha {
             true => &mut self.instances_alpha,
             false => &mut self.instances,
@@ -86,7 +84,7 @@ impl Batcher {
                 bytemuck::cast_slice(&array.data),
                 wgpu::BufferUsage::VERTEX,
             ));
-            pass.set_bind_group(1, array.texture.as_ref(), &[]);
+            pass.set_bind_group(1, array.texture.bind_group.as_ref().unwrap(), &[]);
             pass.set_vertex_buffer(1, array.buffer.as_ref().unwrap(), 0, 0);
             pass.draw_indexed(0..num_indices, 0, 0..array.data.len() as u32);
             array.data.clear();
@@ -101,7 +99,7 @@ impl Batcher {
                 bytemuck::cast_slice(&array.data),
                 wgpu::BufferUsage::VERTEX,
             ));
-            pass.set_bind_group(1, array.texture.as_ref(), &[]);
+            pass.set_bind_group(1, array.texture.bind_group.as_ref().unwrap(), &[]);
             pass.set_vertex_buffer(1, array.buffer.as_ref().unwrap(), 0, 0);
             pass.draw_indexed(0..num_indices, 0, 0..array.data.len() as u32);
             array.data.clear();
@@ -294,7 +292,8 @@ impl Graphics {
             format: COLOR_FORMAT,
             width: extent.width,
             height: extent.height,
-            present_mode: wgpu::PresentMode::Mailbox,
+            //present_mode: wgpu::PresentMode::Mailbox,
+            present_mode: wgpu::PresentMode::Fifo,
         };
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
@@ -339,7 +338,8 @@ impl Graphics {
             format: COLOR_FORMAT,
             width: size.width,
             height: size.height,
-            present_mode: wgpu::PresentMode::Mailbox,
+            //present_mode: wgpu::PresentMode::Mailbox,
+            present_mode: wgpu::PresentMode::Fifo,
         };
         self.swap_chain = self.device.create_swap_chain(&self.surface, &sc_desc);
         self.depth_target = self
@@ -359,7 +359,7 @@ impl Graphics {
         self.render.resize(self.extent, &self.device);
     }
 
-    pub fn draw(&mut self, camera: &camera::Camera) {
+    pub fn flush(&mut self, camera: &camera::Camera) {
         match self.swap_chain.get_next_texture() {
             Ok(frame) => {
                 let targets = ScreenTargets {
@@ -392,9 +392,9 @@ impl Graphics {
         &self,
         bytes: &[u8],
         label: &str,
-    ) -> Result<Arc<wgpu::BindGroup>, texture::ImageError> {
-        let (texture, cmds) = texture::Texture::from_bytes(&self.device, bytes, label)?;
-        let texture_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+    ) -> Result<Arc<texture::Texture>, texture::ImageError> {
+        let (mut texture, cmds) = texture::Texture::from_bytes(&self.device, bytes, label)?;
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &self.render.object.bind_group_layout,
             bindings: &[
                 wgpu::Binding {
@@ -406,13 +406,14 @@ impl Graphics {
                     resource: wgpu::BindingResource::Sampler(&texture.sampler),
                 },
             ],
-            label: Some("diffuse_bind_group"),
+            label: Some(&format!("{}_bind_group", label)),
         });
+        texture.bind_group = Some(bind_group);
         self.queue.submit(&[cmds]);
-        Ok(Arc::new(texture_bind_group))
+        Ok(Arc::new(texture))
     }
 
-    pub fn draw_plane(&mut self, texture: &Arc<Texture>, center: Point3, size: f32, color: Vector4) {
+    pub fn draw_plane(&mut self, texture: &Arc<texture::Texture>, center: Point3, size: f32, color: Vector4) {
         let instance = object::Instance {
             position: center,
             scale: Vector3::new(size, size, size),
@@ -426,7 +427,7 @@ impl Graphics {
     pub fn draw_billboard(
         &mut self,
         camera: &camera::Camera,
-        texture: &Arc<Texture>,
+        texture: &Arc<texture::Texture>,
         source: Rect,
         center: Point3,
         size: Vector2,
@@ -441,6 +442,13 @@ impl Graphics {
         let wish_quat = Quaternion::look_at((camera.target - camera.eye).normalize(), camera.up);
         let orientation = wish_quat.invert() * plane_quat;
 
+        let source = Rect::new(
+            source.position.x / texture.size.width as f32,
+            source.position.y / texture.size.height as f32,
+            source.size.x / texture.size.width as f32,
+            source.size.y / texture.size.height as f32
+        );
+
         let instance = object::Instance {
             position: center,
             orientation,
@@ -452,14 +460,14 @@ impl Graphics {
         self.batcher.add_quad(texture, instance, alpha);
     }
 
-    pub fn draw_debug_cube(&mut self, center: Point3, color: Vector4) {
+    pub fn draw_debug_cube(&mut self, center: Point3, size: Vector3, color: Vector4) {
         let vertices: Vec<_> = debug::CUBE_VERTICES
             .into_iter()
             .map(|v| debug::Vertex {
                 position: [
-                    v.position[0] + center.x,
-                    v.position[1] + center.y,
-                    v.position[2] + center.z,
+                    v.position[0] * size.x + center.x,
+                    v.position[1] * size.y + center.y,
+                    v.position[2] * size.z + center.z,
                 ],
                 color: color.into(),
             })

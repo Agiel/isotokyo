@@ -3,9 +3,11 @@ pub use image::{GenericImageView, ImageError};
 const COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 
 pub struct Texture {
+    pub size: wgpu::Extent3d,
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
+    pub bind_group: Option<wgpu::BindGroup>,
 }
 
 impl Texture {
@@ -35,7 +37,7 @@ impl Texture {
         });
 
         let buffer = device.create_buffer_with_data(
-            &rgba, 
+            &rgba,
             wgpu::BufferUsage::COPY_SRC,
         );
 
@@ -49,13 +51,13 @@ impl Texture {
                 offset: 0,
                 bytes_per_row: 4 * dimensions.0,
                 rows_per_image: dimensions.1,
-            }, 
+            },
             wgpu::TextureCopyView {
                 texture: &texture,
                 mip_level: 0,
                 array_layer: 0,
                 origin: wgpu::Origin3d::ZERO,
-            }, 
+            },
             size,
         );
 
@@ -73,11 +75,13 @@ impl Texture {
             lod_max_clamp: 100.0,
             compare: wgpu::CompareFunction::Always,
         });
-        
-        Ok((Self { 
-            texture, 
-            view, 
-            sampler 
+
+        Ok((Self {
+            size,
+            texture,
+            view,
+            sampler,
+            bind_group: None,
         }, cmd_buffer))
     }
 }
