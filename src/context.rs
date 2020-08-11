@@ -20,8 +20,7 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(window: Rc<Window>) -> Self {
-        let config = config::Config::new();
+    pub fn new(window: Rc<Window>, config: config::Config) -> Self {
         let input = input::Input::new(&config);
         Self {
             game_time: 0.,
@@ -46,9 +45,9 @@ pub struct MainContext {
 }
 
 impl MainContext {
-    pub async fn new(window: Rc<Window>) -> Self {
-        let gfx = graphics::Graphics::new(&window).await;
-        let ctx = Context::new(window);
+    pub async fn new(window: Rc<Window>, config: config::Config) -> Self {
+        let gfx = graphics::Graphics::new(&window, &config).await;
+        let ctx = Context::new(window, config);
 
         let mut assets = assets::Assets::new();
         let state = Box::new(state::game::GameState::new(&mut assets, &gfx));

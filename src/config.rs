@@ -12,18 +12,33 @@ pub struct Config {
     pub key_bindings: HashMap<VirtualKeyCode, Vec<Action>>,
     pub mouse_bindings: HashMap<Mouse, Vec<Action>>,
     pub physics: PhysicsConfig,
+    pub graphics: GraphicsConfig,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct PhysicsConfig {
-    walk_speed: f32,
-    crouch_speed: f32,
-    ground_accel: f32,
-    air_accel: f32,
-    ground_friction: f32,
-    air_friction: f32,
-    gravity: f32,
-    jump_height: f32,
+    pub walk_speed: f32,
+    pub crouch_speed: f32,
+    pub ground_accel: f32,
+    pub air_accel: f32,
+    pub ground_friction: f32,
+    pub air_friction: f32,
+    pub gravity: f32,
+    pub jump_height: f32,
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum PresentMode {
+    Immediate,
+    Mailbox,
+    Fifo,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct GraphicsConfig {
+    pub present_mode: PresentMode,
+    pub target_fps: u16,
+    pub resolution: (u16, u16),
 }
 
 impl Config {
@@ -100,6 +115,11 @@ impl Default for Config {
                 air_friction: 1.0,
                 gravity: 12.0,
                 jump_height: 0.5,
+            },
+            graphics: GraphicsConfig {
+                present_mode: PresentMode::Fifo,
+                target_fps: 60,
+                resolution: (1280, 720),
             },
         }
     }

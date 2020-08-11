@@ -1,5 +1,6 @@
 use crate::camera;
 use crate::utils::*;
+use crate::config;
 use cgmath::prelude::*;
 use std::{collections::HashMap, mem, sync::Arc};
 
@@ -251,6 +252,7 @@ pub struct Graphics {
     swap_chain: wgpu::SwapChain,
     pub extent: wgpu::Extent3d,
     depth_target: wgpu::TextureView,
+    present_mode: wgpu::PresentMode,
 
     render: Render,
     batcher: Batcher,
@@ -258,7 +260,7 @@ pub struct Graphics {
 }
 
 impl Graphics {
-    pub async fn new(window: &winit::window::Window) -> Self {
+    pub async fn new(window: &winit::window::Window, config: &config::Config) -> Self {
         let size = window.inner_size();
         let extent = wgpu::Extent3d {
             width: size.width,
@@ -267,6 +269,12 @@ impl Graphics {
         };
 
         let surface = wgpu::Surface::create(window);
+
+        let present_mode = match config.graphics.present_mode {
+            config::PresentMode::Immediate => wgpu::PresentMode::Immediate,
+            config::PresentMode::Mailbox => wgpu::PresentMode::Mailbox,
+            config::PresentMode::Fifo => wgpu::PresentMode::Fifo,
+        };
 
         let adapter = wgpu::Adapter::request(
             &wgpu::RequestAdapterOptions {
@@ -292,8 +300,7 @@ impl Graphics {
             format: COLOR_FORMAT,
             width: extent.width,
             height: extent.height,
-            //present_mode: wgpu::PresentMode::Mailbox,
-            present_mode: wgpu::PresentMode::Fifo,
+            present_mode,
         };
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
@@ -324,6 +331,7 @@ impl Graphics {
             render,
             batcher,
             debug_lines,
+            present_mode,
         }
     }
 
@@ -338,8 +346,7 @@ impl Graphics {
             format: COLOR_FORMAT,
             width: size.width,
             height: size.height,
-            //present_mode: wgpu::PresentMode::Mailbox,
-            present_mode: wgpu::PresentMode::Fifo,
+            present_mode: self.present_mode,
         };
         self.swap_chain = self.device.create_swap_chain(&self.surface, &sc_desc);
         self.depth_target = self

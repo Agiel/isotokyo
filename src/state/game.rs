@@ -67,6 +67,7 @@ impl GameState {
 
 impl State for GameState {
     fn update(&mut self, assets: &Assets, ctx: &Context) {
+        ctx.set_cursor_grab(true);
         let camera = &self.camera;
         let ray = camera.screen_to_ray(ctx.input.mouse_pos());
         let plane = Plane::new(Point3::origin(), -Vector3::unit_z());
