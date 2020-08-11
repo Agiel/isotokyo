@@ -56,6 +56,7 @@ pub struct Input {
     keys_released: HashSet<Action>,
     keys_down: HashSet<Action>,
     release_next: HashSet<Action>,
+    force_release: HashSet<Action>,
     mouse_pos: Point2,
 }
 
@@ -68,6 +69,7 @@ impl Input {
             keys_released: HashSet::new(),
             keys_down: HashSet::new(),
             release_next: HashSet::new(),
+            force_release: HashSet::new(),
             mouse_pos: Point2::origin(),
         }
     }
@@ -92,24 +94,42 @@ impl Input {
         self.keys_pressed.clear();
         self.keys_released.clear();
 
+        // Release next frame
         self.keys_released.extend(self.release_next.iter());
+        let keys_down = &mut self.keys_down;
+        self.release_next.iter().for_each(|a| {
+            keys_down.remove(a);
+        });
         self.release_next.clear();
     }
 
+    fn set_keys_down(&mut self, keys: &Vec<Action>) {
+        for a in keys.iter() {
+            if self.force_release.contains(a) {
+                continue;
+            }
+            self.keys_pressed.insert(*a);
+            self.keys_down.insert(*a);
+        }
+    }
+
+    fn set_keys_up(&mut self, keys: &Vec<Action>) {
+        self.keys_released.extend(keys.iter());
+        for a in keys.iter() {
+            self.keys_down.remove(a);
+            self.force_release.remove(a);
+        }
+    }
+
     pub fn handle_key_down(&mut self, virtual_keycode: winit::event::VirtualKeyCode) {
-        if let Some(action) = self.key_bindings.get(&virtual_keycode) {
-            self.keys_pressed.extend(action.iter());
-            self.keys_down.extend(action.iter());
+        if let Some(actions) = self.key_bindings.get(&virtual_keycode).cloned() {
+            self.set_keys_down(&actions);
         }
     }
 
     pub fn handle_key_up(&mut self, virtual_keycode: winit::event::VirtualKeyCode) {
-        if let Some(action) = self.key_bindings.get(&virtual_keycode) {
-            self.keys_released.extend(action.iter());
-            let keys_down = &mut self.keys_down;
-            action.iter().for_each(|a| {
-                keys_down.remove(a);
-            });
+        if let Some(actions) = self.key_bindings.get(&virtual_keycode).cloned() {
+            self.set_keys_up(&actions);
         }
     }
 
@@ -124,9 +144,8 @@ impl Input {
             MouseButton::Right => Mouse::Right,
             MouseButton::Other(n) => Mouse::Button(n),
         };
-        if let Some(action) = self.mouse_bindings.get(&button) {
-            self.keys_pressed.extend(action);
-            self.keys_down.extend(action);
+        if let Some(actions) = self.mouse_bindings.get(&button).cloned() {
+            self.set_keys_down(&actions);
         }
     }
 
@@ -137,12 +156,8 @@ impl Input {
             MouseButton::Right => Mouse::Right,
             MouseButton::Other(n) => Mouse::Button(n),
         };
-        if let Some(action) = self.mouse_bindings.get(&button) {
-            self.keys_released.extend(action);
-            let keys_down = &mut self.keys_down;
-            action.iter().for_each(|a| {
-                keys_down.remove(a);
-            });
+        if let Some(actions) = self.mouse_bindings.get(&button).cloned() {
+            self.set_keys_up(&actions);
         }
     }
 
@@ -170,6 +185,9 @@ impl Input {
     }
 
     pub fn force_release_key(&mut self, action: Action) {
-        self.release_next.insert(action);
+        if self.is_key_down(action) {
+            self.release_next.insert(action);
+            self.force_release.insert(action);
+        }
     }
 }

@@ -96,8 +96,9 @@ impl Animator {
 // TODO: Should probably use a proper ECS architecture, but for now we can use a basic Actor setup.
 pub struct Actor {
     pub position: Point3,
-    pub orientation: Vector2,
+    pub orientation: Vector3,
     pub velocity: Vector3,
+    pub is_grounded: bool,
     animator: Animator,
     pub is_local_player: bool,
 }
@@ -107,24 +108,22 @@ impl Actor {
         use std::f32::consts::FRAC_1_SQRT_2;
         Self {
             position,
-            orientation: Vector2::new(-FRAC_1_SQRT_2, -FRAC_1_SQRT_2),
+            orientation: Vector3::new(-FRAC_1_SQRT_2, -FRAC_1_SQRT_2, 0.),
             velocity: Vector3::zero(),
+            is_grounded: true,
             animator: Animator::new(animations),
             is_local_player: false,
         }
     }
 
     pub fn update(&mut self, ctx: &Context) {
-        if self.is_local_player {
-            if ctx.input.is_key_down(Action::Jump) {
-                self.animator.set_sequence(Sequence::Jump);
-            } else if ctx.input.is_key_down(Action::Forward) {
-                self.animator.set_sequence(Sequence::Walk);
-            } else {
-                self.animator.set_sequence(Sequence::Idle);
-            }
+        if !self.is_grounded {
+            self.animator.set_sequence(Sequence::Jump);
+        } else if self.velocity.magnitude() > 0. {
+            self.animator.set_sequence(Sequence::Walk);
+        } else {
+            self.animator.set_sequence(Sequence::Idle);
         }
-
         self.animator.update(ctx.game_time);
     }
 
@@ -132,8 +131,9 @@ impl Actor {
         // Draw sprite
         if let Some(texture) = assets.get_texture(self.animator.get_texture()) {
             let forward = camera.target - camera.eye;
-            let forward = Vector2::new(forward.x, forward.y).normalize();
-            let angle = self.orientation.angle(forward);
+            let forward = Vector2::new(forward.x, forward.y);
+            let facing = Vector2::new(self.orientation.x, self.orientation.y);
+            let angle = facing.angle(forward);
 
             let source = self.animator.get_rect(angle);
             let size = source.size / PIXELS_PER_UNIT;
@@ -158,10 +158,10 @@ impl Actor {
             let plane = Plane::new(Point3::origin(), Vector3::unit_z());
 
             if let Some(distance) = ray_plane_intersection(&ray, &plane, 1.0) {
-                let shadow_strength = 0.6 + 0.4 * (1.0 - distance);
+                let shadow_strength = 0.4 + 0.6 * (1. - distance / 0.5).max(0.);
                 gfx.draw_plane(
                     &shadow_texture,
-                    Point3::new(position.x, position.y, position.z - distance + 0.01),
+                    ray.start + ray.direction * (distance - 0.01),
                     1.0,
                     (0.0, 0.0, 0.0, shadow_strength).into(),
                 );

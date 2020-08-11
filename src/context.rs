@@ -13,7 +13,7 @@ use std::rc::Rc;
 
 pub struct Context {
     pub game_time: f64,
-    pub delta_time: f64,
+    pub delta_time: f32,
     pub input: input::Input,
     pub config: config::Config,
     window: Rc<Window>,
@@ -33,7 +33,7 @@ impl Context {
 
     pub fn set_cursor_grab(&self, grab: bool) {
         self.window.set_cursor_grab(grab).unwrap_or_else(|_| println!("Cursor grab not supported"));
-        self.window.set_cursor_visible(grab);
+        self.window.set_cursor_visible(!grab);
     }
 }
 
@@ -50,7 +50,7 @@ impl MainContext {
         let ctx = Context::new(window, config);
 
         let mut assets = assets::Assets::new();
-        let state = Box::new(state::game::GameState::new(&mut assets, &gfx));
+        let state = Box::new(state::game::GameState::new(&mut assets, &ctx,  &gfx));
         Self {
             gfx,
             state,
@@ -72,6 +72,7 @@ impl MainContext {
                     state,
                     ..
                 },
+                is_synthetic: false,
                 ..
             } => match state {
                 ElementState::Pressed => {
@@ -129,9 +130,9 @@ impl MainContext {
 
     pub fn update(&mut self, game_time: f64, delta_time: f64) {
         self.ctx.game_time = game_time;
-        self.ctx.delta_time = delta_time;
+        self.ctx.delta_time = delta_time as f32;
 
-        self.state.update(&self.assets, &self.ctx);
+        self.state.update(&self.assets, &mut self.ctx);
 
         self.ctx.input.clear();
     }

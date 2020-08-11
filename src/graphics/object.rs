@@ -113,6 +113,7 @@ pub struct Context {
     pub bind_group_layout: wgpu::BindGroupLayout,
     pub pipeline_layout: wgpu::PipelineLayout,
     pub pipeline: wgpu::RenderPipeline,
+    pub pipeline_alpha: wgpu::RenderPipeline,
 }
 
 impl Context {
@@ -120,6 +121,7 @@ impl Context {
         layout: &wgpu::PipelineLayout,
         device: &wgpu::Device,
         shaders: &Shaders,
+        depth_write_enabled: bool,
     ) -> wgpu::RenderPipeline {
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             layout,
@@ -155,7 +157,7 @@ impl Context {
             }],
             depth_stencil_state: Some(wgpu::DepthStencilStateDescriptor {
                 format: DEPTH_FORMAT,
-                depth_write_enabled: true,
+                depth_write_enabled,
                 depth_compare: wgpu::CompareFunction::LessEqual,
                 stencil_front: wgpu::StencilStateFaceDescriptor::IGNORE,
                 stencil_back: wgpu::StencilStateFaceDescriptor::IGNORE,
@@ -198,16 +200,19 @@ impl Context {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             bind_group_layouts: &[&global.bind_group_layout, &bind_group_layout],
         });
-        let pipeline = Self::create_pipeline(&pipeline_layout, device, shaders);
+        let pipeline = Self::create_pipeline(&pipeline_layout, device, shaders, true);
+        let pipeline_alpha = Self::create_pipeline(&pipeline_layout, device, shaders, false);
 
         Context {
             bind_group_layout,
             pipeline_layout,
             pipeline,
+            pipeline_alpha,
         }
     }
 
     pub fn reload(&mut self, device: &wgpu::Device, shaders: &Shaders) {
-        self.pipeline = Self::create_pipeline(&self.pipeline_layout, device, shaders);
+        self.pipeline = Self::create_pipeline(&self.pipeline_layout, device, shaders, true);
+        self.pipeline_alpha = Self::create_pipeline(&self.pipeline_layout, device, shaders, false);
     }
 }

@@ -72,12 +72,10 @@ fn main() {
 
                 accumulator += frame_time;
 
-                let mut i = 0;
                 while accumulator >= TIME_STEP {
                     ctx.update(game_time, TIME_STEP);
                     game_time += TIME_STEP;
                     accumulator -= TIME_STEP;
-                    i += 1;
                 }
                 ctx.draw();
 

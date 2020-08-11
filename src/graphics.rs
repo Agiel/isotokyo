@@ -71,12 +71,12 @@ impl Batcher {
             .push(instance.to_raw());
     }
 
-    pub fn draw<'a>(&'a mut self, pass: &mut wgpu::RenderPass<'a>, device: &wgpu::Device) {
+    pub fn draw<'a>(&'a mut self, pass: &mut wgpu::RenderPass<'a>, device: &wgpu::Device, object: &'a object::Context) {
         let num_indices = object::INDICES.len() as u32;
         pass.set_vertex_buffer(0, &self.vertex_buffer, 0, 0);
         pass.set_index_buffer(&self.index_buffer, 0, 0);
 
-
+        pass.set_pipeline(&object.pipeline);
         for array in self.instances.values_mut() {
             if array.data.is_empty() {
                 continue;
@@ -92,6 +92,7 @@ impl Batcher {
         }
 
         // TODO: Sort?
+        pass.set_pipeline(&object.pipeline_alpha);
         for array in self.instances_alpha.values_mut() {
             if array.data.is_empty() {
                 continue;
@@ -136,7 +137,7 @@ impl DebugLines {
         self.indices.clear();
     }
 
-    fn draw<'a>(&'a mut self, pass: &mut wgpu::RenderPass<'a>, device: &wgpu::Device) {
+    fn draw<'a>(&'a mut self, pass: &mut wgpu::RenderPass<'a>, device: &wgpu::Device, debug: &'a debug::Context) {
         if self.vertices.is_empty() {
             return;
         }
@@ -154,6 +155,7 @@ impl DebugLines {
 
         self.clear();
 
+        pass.set_pipeline(&debug.pipeline);
         pass.set_vertex_buffer(0, self.vertex_buffer.as_ref().unwrap(), 0, 0);
         pass.set_index_buffer(self.index_buffer.as_ref().unwrap(), 0, 0);
         pass.draw_indexed(0..num_indices, 0, 0..1);
@@ -231,11 +233,9 @@ impl Render {
 
         pass.set_bind_group(0, &self.global.bind_group, &[]);
 
-        pass.set_pipeline(&self.object.pipeline);
-        batcher.draw(&mut pass, device);
+        batcher.draw(&mut pass, device, &self.object);
 
-        pass.set_pipeline(&self.debug.pipeline);
-        debug_lines.draw(&mut pass, device);
+        debug_lines.draw(&mut pass, device, &self.debug);
     }
 
     pub fn reload(&mut self, device: &wgpu::Device) {
