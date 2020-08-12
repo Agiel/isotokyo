@@ -19,6 +19,7 @@ pub struct Config {
 pub struct PhysicsConfig {
     pub walk_speed: f32,
     pub crouch_speed: f32,
+    pub air_speed: f32,
     pub ground_accel: f32,
     pub air_accel: f32,
     pub ground_friction: f32,
@@ -109,10 +110,11 @@ impl Default for Config {
             physics: PhysicsConfig {
                 walk_speed: 3.0,
                 crouch_speed: 1.0,
+                air_speed: 0.5,
                 ground_accel: 10.0,
                 air_accel: 1.0,
                 ground_friction: 5.0,
-                air_friction: 0.1,
+                air_friction: 0.0,
                 gravity: 12.0,
                 jump_height: 0.5,
             },

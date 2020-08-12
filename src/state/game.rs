@@ -173,4 +173,20 @@ impl State for GameState {
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         self.camera.screen_size = Vector2::new(new_size.width as f32, new_size.height as f32);
     }
+
+    fn handle_key_down(&mut self, virtual_keycode: winit::event::VirtualKeyCode) -> bool {
+        if virtual_keycode == winit::event::VirtualKeyCode::P {
+            self.camera.projection = match self.camera.projection {
+                Projection::Orthographic => {
+                    self.camera.zfar = 1000.0;
+                    Projection::Perspective
+                }
+                Projection::Perspective => {
+                    self.camera.zfar = CAMERA_DISTANCE * 2.;
+                    Projection::Orthographic
+                }
+            }
+        }
+        false
+    }
 }

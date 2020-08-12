@@ -4,6 +4,8 @@ use winit::{
     window::WindowBuilder,
 };
 
+use std::time::{Duration, SystemTime};
+
 mod camera;
 mod graphics;
 mod utils;
@@ -26,14 +28,18 @@ fn main() {
         .unwrap()
     );
 
-    let target_frame_time = std::time::Duration::from_secs_f64(1.0 / config.graphics.target_fps as f64);
+    let target_frame_time = if config.graphics.target_fps > 0 {
+        Some(Duration::from_secs_f64(1.0 / config.graphics.target_fps as f64))
+    } else {
+        None
+    };
 
     use futures::executor::block_on;
 
     // Since main can't be async, we're going to need to block
     let mut ctx = block_on(context::MainContext::new(window.clone(), config));
 
-    let mut current_time = std::time::SystemTime::now();
+    let mut current_time = SystemTime::now();
     let mut game_time: f64 = 0.0;
     let mut accumulator: f64 = 0.0;
 
@@ -67,8 +73,8 @@ fn main() {
             }
             Event::RedrawRequested(_) => {
                 let frame_time = current_time.elapsed().unwrap().as_secs_f64();
-                //println!("fps: {}", 1. / frame_time);
-                current_time = std::time::SystemTime::now();
+                print!("fps: {:.2}, ", 1. / frame_time);
+                current_time = SystemTime::now();
 
                 accumulator += frame_time;
 
@@ -79,10 +85,19 @@ fn main() {
                 }
                 ctx.draw();
 
-                let actual_frame_time = current_time.elapsed().unwrap();
-                if actual_frame_time.as_secs_f64() < target_frame_time.as_secs_f64() {
-                    let sleep_time = target_frame_time - actual_frame_time;
-                    std::thread::sleep(sleep_time);
+                if let Some(target_frame_time) = target_frame_time {
+                    let actual_frame_time = current_time.elapsed().unwrap();
+                    if actual_frame_time.as_secs_f64() < target_frame_time.as_secs_f64() {
+                        let sleep_time = target_frame_time - actual_frame_time;
+                        if std::env::consts::OS == "windows" {
+                            let slept = SystemTime::now();
+                            while slept.elapsed().unwrap().as_secs_f64() < sleep_time.as_secs_f64() {
+                                std::thread::sleep(Duration::from_millis(0));
+                            }
+                        } else {
+                            std::thread::sleep(sleep_time);
+                        }
+                    }
                 }
             }
             Event::MainEventsCleared => {

@@ -94,8 +94,13 @@ impl Actor {
     }
 
     fn accelerate(&mut self, wish_dir: Vector3, wish_speed: f32, ctx: &Context) {
+        let wsh_speed = if !self.is_grounded {
+            ctx.config.physics.air_speed
+        } else {
+            wish_speed
+        };
         let current_speed = self.velocity.dot(wish_dir);
-        let add_speed = wish_speed - current_speed;
+        let add_speed = wsh_speed - current_speed;
         if add_speed <= 0. {
             return;
         }
