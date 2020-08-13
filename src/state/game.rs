@@ -25,6 +25,8 @@ pub struct GameState {
     camera: Camera,
     actors: Vec<Actor>,
     aim_point: Option<Point3>,
+    cursor_grab: bool,
+    toggle_cursor: bool,
 }
 
 impl GameState {
@@ -74,6 +76,8 @@ impl GameState {
             camera,
             actors,
             aim_point: None,
+            cursor_grab: true,
+            toggle_cursor: false,
         }
     }
 
@@ -141,6 +145,12 @@ impl State for GameState {
         // eliminate "crosshair" lag
         let ray = self.camera.screen_to_ray(ctx.input.mouse_pos());
         self.aim_point = self.get_aim_point(&ray);
+
+        if self.toggle_cursor {
+            self.toggle_cursor = false;
+            self.cursor_grab = !self.cursor_grab;
+            ctx.set_cursor_grab(self.cursor_grab);
+        }
     }
 
     fn draw(&self, assets: &Assets, gfx: &mut Graphics) {
@@ -187,6 +197,11 @@ impl State for GameState {
                 }
             }
         }
+
+        if virtual_keycode == winit::event::VirtualKeyCode::O {
+            self.toggle_cursor = true;
+        }
+
         false
     }
 }

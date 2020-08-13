@@ -15,8 +15,6 @@ mod input;
 mod config;
 mod assets;
 
-const TIME_STEP: f64 = 1.0 / 60.0;
-
 fn main() {
     let event_loop = EventLoop::new();
     let config = config::Config::new();
@@ -39,9 +37,9 @@ fn main() {
     // Since main can't be async, we're going to need to block
     let mut ctx = block_on(context::MainContext::new(window.clone(), config));
 
-    let mut current_time = SystemTime::now();
-    let mut game_time: f64 = 0.0;
-    let mut accumulator: f64 = 0.0;
+    let mut begin_frame = SystemTime::now();
+    let mut game_time = 0.0;
+    let mut frame_time = 0.0;
 
     event_loop.run(move |event, _, control_flow| {
         match event {
@@ -72,33 +70,33 @@ fn main() {
                 }
             }
             Event::RedrawRequested(_) => {
-                let frame_time = current_time.elapsed().unwrap().as_secs_f64();
                 print!("fps: {:.2}, ", 1. / frame_time);
-                current_time = SystemTime::now();
 
-                accumulator += frame_time;
+                // Update
+                game_time += frame_time;
+                ctx.update(game_time, frame_time);
 
-                while accumulator >= TIME_STEP {
-                    ctx.update(game_time, TIME_STEP);
-                    game_time += TIME_STEP;
-                    accumulator -= TIME_STEP;
-                }
+                // Draw
                 ctx.draw();
 
+                // Sleep to match target_fps
                 if let Some(target_frame_time) = target_frame_time {
-                    let actual_frame_time = current_time.elapsed().unwrap();
-                    if actual_frame_time.as_secs_f64() < target_frame_time.as_secs_f64() {
-                        let sleep_time = target_frame_time - actual_frame_time;
+                    let actual_frame_time = begin_frame.elapsed().unwrap();
+                    if frame_time > 0. && actual_frame_time.as_secs_f64() < target_frame_time.as_secs_f64() {
                         if std::env::consts::OS == "windows" {
-                            let slept = SystemTime::now();
-                            while slept.elapsed().unwrap().as_secs_f64() < sleep_time.as_secs_f64() {
-                                std::thread::sleep(Duration::from_millis(0));
+                            while begin_frame.elapsed().unwrap().as_secs_f64() < target_frame_time.as_secs_f64() {
+                                std::thread::sleep(Duration::from_secs(0));
                             }
                         } else {
+                            let sleep_time = target_frame_time - actual_frame_time;
                             std::thread::sleep(sleep_time);
                         }
                     }
                 }
+
+                // Begin next frame (events -> update -> draw -> sleep)
+                frame_time = begin_frame.elapsed().unwrap().as_secs_f64();
+                begin_frame = SystemTime::now();
             }
             Event::MainEventsCleared => {
                 // RedrawRequested will only trigger once, unless we manually
@@ -108,5 +106,4 @@ fn main() {
             _ => {}
         }
     });
-
 }
