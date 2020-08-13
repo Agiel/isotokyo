@@ -46,11 +46,11 @@ pub struct MainContext {
 
 impl MainContext {
     pub async fn new(window: Rc<Window>, config: config::Config) -> Self {
-        let gfx = graphics::Graphics::new(&window, &config).await;
+        let mut gfx = graphics::Graphics::new(&window, &config).await;
         let ctx = Context::new(window, config);
 
         let mut assets = assets::Assets::new();
-        let state = Box::new(state::game::GameState::new(&mut assets, &ctx,  &gfx));
+        let state = Box::new(state::game::GameState::new(&mut assets, &ctx,  &mut gfx));
         Self {
             gfx,
             state,
@@ -138,7 +138,7 @@ impl MainContext {
     }
 
     pub fn draw(&mut self) {
-        self.state.draw(&self.assets, &mut self.gfx);
+        self.state.draw(&self.assets, &self.ctx, &mut self.gfx);
     }
 }
 

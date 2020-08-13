@@ -2,6 +2,7 @@ use crate::camera;
 use crate::utils::*;
 use crate::config;
 use cgmath::prelude::*;
+use wgpu_glyph::{ab_glyph, GlyphBrush, GlyphBrushBuilder, Section, Text, FontId};
 use std::{collections::HashMap, mem, sync::Arc};
 
 pub mod debug;
@@ -197,7 +198,7 @@ impl Render {
         batcher: &mut Batcher,
         debug_lines: &mut DebugLines,
         camera: &camera::Camera,
-        targets: ScreenTargets,
+        targets: &ScreenTargets,
         device: &wgpu::Device,
     ) {
         let mut uniforms = global::Uniforms::new();
@@ -257,6 +258,8 @@ pub struct Graphics {
     render: Render,
     batcher: Batcher,
     debug_lines: DebugLines,
+    glyph_brush: Option<GlyphBrush<()>>,
+    fonts: HashMap<String, FontId>,
 }
 
 impl Graphics {
@@ -320,6 +323,8 @@ impl Graphics {
         let render = Render::new(&device);
         let batcher = Batcher::new(&device);
         let debug_lines = DebugLines::new();
+        let glyph_brush = None;
+        let fonts = HashMap::new();
 
         Self {
             device,
@@ -331,6 +336,8 @@ impl Graphics {
             render,
             batcher,
             debug_lines,
+            glyph_brush,
+            fonts,
             present_mode,
         }
     }
@@ -384,9 +391,22 @@ impl Graphics {
                     &mut self.batcher,
                     &mut self.debug_lines,
                     camera,
-                    targets,
+                    &targets,
                     &self.device,
                 );
+
+                let device = &self.device;
+                let extent = &self.extent;
+                if let Some(glyph_brush) = &mut self.glyph_brush {
+                    glyph_brush.draw_queued(
+                        device,
+                        &mut encoder,
+                        &targets.color,
+                        extent.width,
+                        extent.height
+                    ).expect("Draw queued text");
+                }
+
                 self.batcher.clear();
                 self.debug_lines.clear();
                 self.queue.submit(&[encoder.finish()]);
@@ -420,12 +440,44 @@ impl Graphics {
         Ok(Arc::new(texture))
     }
 
+    pub fn load_font_bytes(&mut self, name: &str, bytes: Vec<u8>) -> Result<FontId, ab_glyph::InvalidFont> {
+        let mut font_id = FontId(0);
+        let font = ab_glyph::FontArc::try_from_vec(bytes)?;
+        let glyph_brush = if let Some(glyph_brush) = &mut self.glyph_brush {
+            font_id = glyph_brush.add_font(font);
+            None
+        } else {
+            Some(GlyphBrushBuilder::using_font(font)
+                .build(&self.device, COLOR_FORMAT)
+            )
+        };
+        if glyph_brush.is_some() {
+            self.glyph_brush = glyph_brush;
+        }
+
+        Ok(font_id)
+    }
+
+    pub fn draw_text(&mut self, text: &str, font: FontId, size: f32, position: Vector2, color: (f32, f32, f32, f32)) {
+        if let Some(glyph_brush) = &mut self.glyph_brush {
+            glyph_brush.queue(Section {
+                screen_position: (position.x, position.y),
+                bounds: (self.extent.width as f32, self.extent.height as f32),
+                text: vec![Text::new(text)
+                    .with_color([color.0, color.1, color.2, color.3])
+                    .with_scale(size)
+                    .with_font_id(font)],
+                ..Default::default()
+            });
+        }
+    }
+
     pub fn draw_plane(&mut self, texture: &Arc<texture::Texture>, center: Point3, size: f32, color: Vector4) {
         let instance = object::Instance {
             position: center,
             scale: Vector3::new(size, size, size),
             color,
-            ..object::Instance::default()
+            ..Default::default()
         };
         let alpha = instance.color.w < 1.0;
         self.batcher.add_quad(texture, instance, alpha);
@@ -461,7 +513,7 @@ impl Graphics {
             orientation,
             scale: Vector3::new(size.x, size.y, 1.0),
             source,
-            ..object::Instance::default()
+            ..Default::default()
         };
         let alpha = instance.color.w < 1.0;
         self.batcher.add_quad(texture, instance, alpha);

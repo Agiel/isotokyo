@@ -39,10 +39,6 @@ impl Actor {
             self.velocity -= Vector3::unit_z() * ctx.config.physics.gravity * ctx.delta_time;
         }
 
-        let mut speed = self.velocity.clone();
-        speed.z = 0.;
-        println!("Speed: {}", speed.magnitude());
-
         self.position += self.velocity * ctx.delta_time;
     }
 

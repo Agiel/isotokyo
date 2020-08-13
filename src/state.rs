@@ -2,7 +2,7 @@ pub mod game;
 
 pub trait State {
     fn update(&mut self, assets: &crate::assets::Assets, ctx: &mut crate::context::Context);
-    fn draw(&self, assets: &crate::assets::Assets, gfx: &mut crate::graphics::Graphics);
+    fn draw(&self, assets: &crate::assets::Assets, ctx: &crate::context::Context, gfx: &mut crate::graphics::Graphics);
 
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {}
 

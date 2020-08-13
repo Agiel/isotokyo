@@ -10,6 +10,7 @@ edition = "2018"
 wgpu = "0.5"
 shaderc = "0.6"
 image = "0.23"
+wgpu_glyph = "0.9"
 winit = { version = "0.22", features = [ "serde" ] }
 cgmath = "0.17"
 futures = "0.3"

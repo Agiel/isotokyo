@@ -30,7 +30,7 @@ pub struct GameState {
 }
 
 impl GameState {
-    pub fn new(assets: &mut Assets, ctx: &Context, gfx: &Graphics) -> Self {
+    pub fn new(assets: &mut Assets, ctx: &Context, gfx: &mut Graphics) -> Self {
         ctx.set_cursor_grab(true);
 
         let view =
@@ -46,6 +46,7 @@ impl GameState {
             ..Default::default()
         };
 
+        #[rustfmt::skip]
         assets.load_texture("grass", "grass1.png", gfx).unwrap();
         assets.load_texture("sakura", "sakura1.png", gfx).unwrap();
         assets.load_texture("nsf_idle", "nsf_idle.png", gfx).unwrap();
@@ -53,6 +54,7 @@ impl GameState {
         assets.load_texture("jinrai_idle", "jinrai_idle.png", gfx).unwrap();
         assets.load_texture("jinrai_walk", "jinrai_walk.png", gfx).unwrap();
         assets.load_texture("blob_shadow", "blob_shadow.png", gfx).unwrap();
+        assets.load_font("x-scale", "X-SCALE_.TTF", gfx).unwrap();
 
         let sakura = assets.load_animation("sakura", "sakura.ron").unwrap();
         let jinrai = assets.load_animation("jinrai", "jinrai.ron").unwrap();
@@ -153,8 +155,9 @@ impl State for GameState {
         }
     }
 
-    fn draw(&self, assets: &Assets, gfx: &mut Graphics) {
+    fn draw(&self, assets: &Assets, ctx: &Context, gfx: &mut Graphics) {
         let ground_texture = assets.get_texture("grass").unwrap();
+        let font = assets.get_font("x-scale").unwrap();
 
         for x in 0..32 {
             for y in 0..32 {
@@ -167,7 +170,18 @@ impl State for GameState {
             }
         }
 
-        self.actors.iter().for_each(|f| f.draw(&self.camera, assets, gfx));
+        self.actors.iter().for_each(|f| {
+            if f.is_local_player {
+                gfx.draw_text(
+                    &format!("Speed: {:.2}", f.velocity.magnitude()),
+                    font,
+                    24.,
+                    (8., 16.).into(),
+                    WHITE
+                );
+            }
+            f.draw(&self.camera, assets, gfx)
+        });
 
         let (point, color) = match self.aim_point {
             Some(point) => (point, (1., 1., 1., 0.5).into()),
@@ -176,6 +190,14 @@ impl State for GameState {
         gfx.draw_debug_cube(point, (0.25, 0.25, 0.25).into(), color);
 
         // gfx.draw_debug_grid(Point3::new(0.0, 0.0, 0.25), 20);
+
+        gfx.draw_text(
+            &format!("fps: {:.2}", 1. / ctx.delta_time),
+            font,
+            24.,
+            (8., 0.).into(),
+            WHITE
+        );
 
         gfx.flush(&self.camera);
     }

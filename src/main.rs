@@ -70,8 +70,6 @@ fn main() {
                 }
             }
             Event::RedrawRequested(_) => {
-                print!("fps: {:.2}, ", 1. / frame_time);
-
                 // Update
                 game_time += frame_time;
                 ctx.update(game_time, frame_time);

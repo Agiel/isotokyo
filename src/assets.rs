@@ -11,6 +11,7 @@ use std::error::Error;
 pub struct Assets {
     textures: HashMap<String, Arc<Texture>>,
     animations: HashMap<String, Arc<Animations>>,
+    fonts: HashMap<String, wgpu_glyph::FontId>,
 }
 
 impl Assets {
@@ -18,6 +19,7 @@ impl Assets {
         Self {
             textures: HashMap::new(),
             animations: HashMap::new(),
+            fonts: HashMap::new(),
         }
     }
 
@@ -42,5 +44,16 @@ impl Assets {
 
     pub fn get_animation(&self, name: &str) -> Option<Arc<Animations>> {
         self.animations.get(name).cloned()
+    }
+
+    pub fn load_font(&mut self, name: &str, path: &str, gfx: &mut Graphics) -> Result<wgpu_glyph::FontId, Box<dyn Error>> {
+        let font_bytes = fs::read(&format!("resources/fonts/{}", path))?;
+        let font = gfx.load_font_bytes(name, font_bytes)?;
+        self.fonts.insert(name.to_string(), font);
+        Ok(font)
+    }
+
+    pub fn get_font(&self, name: &str) -> Option<wgpu_glyph::FontId> {
+        self.fonts.get(name).cloned()
     }
 }
