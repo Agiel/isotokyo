@@ -127,16 +127,31 @@ impl Actor {
         self.animator.update(ctx.game_time);
     }
 
-    pub fn draw(&self, camera: &Camera, assets: &Assets, gfx: &mut Graphics) {
+    pub fn draw(&self, camera: &Camera, assets: &Assets, gfx: &mut Graphics) -> bool {
         // Draw sprite
         if let Some(texture) = assets.get_texture(self.animator.get_texture()) {
             let forward = camera.target - camera.eye;
-            let forward = Vector2::new(forward.x, forward.y);
+            let forward = Vector2::new(forward.x, forward.y).normalize();
             let facing = Vector2::new(self.orientation.x, self.orientation.y);
             let angle = facing.angle(forward);
 
             let source = self.animator.get_rect(angle);
             let size = source.size / PIXELS_PER_UNIT;
+
+            // Don't draw if outside screen
+            {
+                let margin = Vector2::new(
+                    source.size.x / camera.screen_size.x,
+                    source.size.y / camera.screen_size.y
+                );
+                // Close enough?
+                let offset = forward * (size.y / 2. - 0.5) * 1.5;
+                let position = self.position + Vector3::new(offset.x, offset.y, 0.5);
+                if !is_world_point_inside_screen(camera.matrix, position, margin) {
+                    return false;
+                }
+            }
+
             gfx.draw_billboard(
                 camera,
                 &texture,
@@ -167,5 +182,7 @@ impl Actor {
                 );
             }
         }
+
+        return true;
     }
 }

@@ -61,6 +61,7 @@ impl Batcher {
             true => &mut self.instances_alpha,
             false => &mut self.instances,
         };
+
         instances
             .entry(&**texture)
             .or_insert_with(|| InstanceArray {

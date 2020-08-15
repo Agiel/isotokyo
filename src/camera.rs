@@ -23,6 +23,7 @@ pub struct Camera {
     pub zfar: f32,
     pub projection: Projection,
     pub screen_size: Vector2,
+    pub matrix: Matrix4,
 }
 
 impl Default for Camera {
@@ -36,21 +37,19 @@ impl Default for Camera {
             zfar: 1000.0,
             projection: Projection::Orthographic,
             screen_size: Vector2::new(1920., 1080.),
+            matrix: Matrix4::identity(),
         }
     }
 }
 
 impl Camera {
-    pub fn build_view_projection_matrix(&self) -> Matrix4 {
+    pub fn build_view_projection_matrix(&mut self) -> Matrix4 {
         let aspect = self.screen_size.x / self.screen_size.y;
         let view = Matrix4::look_at(self.eye, self.target, self.up);
         let proj = match self.projection {
-            Projection::Perspective => cgmath::perspective(
-                cgmath::Deg(45.0),
-                aspect,
-                self.znear,
-                self.zfar
-            ),
+            Projection::Perspective => {
+                cgmath::perspective(cgmath::Deg(45.0), aspect, self.znear, self.zfar)
+            }
             Projection::Orthographic => {
                 let width = self.screen_size.x / PIXELS_PER_UNIT;
                 let height = self.screen_size.y / PIXELS_PER_UNIT;
@@ -60,19 +59,20 @@ impl Camera {
                     -height / 2.,
                     height / 2.,
                     self.znear,
-                    self.zfar
+                    self.zfar,
                 )
             }
         };
 
-        proj * view
+        self.matrix = proj * view;
+        self.matrix
     }
 
     pub fn screen_to_ray(&self, point: Point2) -> Ray {
         let x = 2. * point.x / self.screen_size.x - 1.;
         let y = 1. - 2. * point.y / self.screen_size.y;
 
-        let mat = self.build_view_projection_matrix().invert().unwrap();
+        let mat = self.matrix.invert().unwrap();
 
         let near = mat.transform_point(Point3::new(x, y, 0.));
         let far = mat.transform_point(Point3::new(x, y, 1.));

@@ -37,7 +37,7 @@ impl GameState {
             Matrix4::from_angle_z(cgmath::Deg(45.0)) * Matrix4::from_angle_x(cgmath::Deg(-30.0));
 
         let screen_size = Vector2::new(gfx.extent.width as f32, gfx.extent.height as f32);
-        let camera = Camera {
+        let mut camera = Camera {
             // projection: Projection::Perspective,
             eye: view.transform_point(Point3::origin() + Vector3::unit_y() * -CAMERA_DISTANCE),
             target: Point3::origin(),
@@ -45,6 +45,7 @@ impl GameState {
             screen_size,
             ..Default::default()
         };
+        camera.build_view_projection_matrix();
 
         #[rustfmt::skip]
         assets.load_texture("grass", "grass1.png", gfx).unwrap();
@@ -62,10 +63,10 @@ impl GameState {
 
         let mut actors = Vec::<Actor>::new();
 
-        for _ in 0..32 {
+        for _ in 0..256 {
             let (x, y): (f32, f32) = rand::thread_rng().gen();
             actors.push(Actor::new(
-                Point3::new(x * 32., y * 32., 0.0),
+                Point3::new(x * 128., y * 128., 0.0),
                 sakura.clone(),
             ));
         }
@@ -138,6 +139,7 @@ impl State for GameState {
                     camera.target = a.position + (point - a.position) / 6.0;
                     camera.target.z = 0.;
                     camera.eye = camera.target + camera_offset;
+                    camera.build_view_projection_matrix();
                 }
             }
             a.update(ctx)
@@ -159,29 +161,47 @@ impl State for GameState {
         let ground_texture = assets.get_texture("grass").unwrap();
         let font = assets.get_font("x-scale").unwrap();
 
-        for x in 0..32 {
-            for y in 0..32 {
+        let mat = self.camera.matrix;
+        let screen_size = self.camera.screen_size;
+
+        let mut num_tiles = 0;
+        for x in 0..128 {
+            for y in 0..128 {
+                use std::f32::consts::SQRT_2;
+                let center = Point3::new(x as f32, y as f32, 0.0);
+                let margin = Vector2::new(
+                    64. * SQRT_2 / screen_size.x,
+                    64. * SQRT_2 / screen_size.y);
+                if !is_world_point_inside_screen(mat, center, margin) {
+                    continue;
+                }
+                num_tiles = num_tiles + 1;
                 gfx.draw_plane(
                     &ground_texture,
-                    Point3::new(x as f32, y as f32, 0.0),
+                    center,
                     1.0,
                     WHITE.into(),
                 );
             }
         }
+        gfx.draw_text(&format!("Tiles: {}", num_tiles), font, 24., (8., 16.).into(), WHITE);
 
-        self.actors.iter().for_each(|f| {
-            if f.is_local_player {
+        let mut num_actors = 0;
+        self.actors.iter().for_each(|a| {
+            if a.is_local_player {
                 gfx.draw_text(
-                    &format!("Speed: {:.2}", f.velocity.magnitude()),
+                    &format!("Speed: {:.2}", a.velocity.magnitude()),
                     font,
                     24.,
-                    (8., 16.).into(),
+                    (8., 48.).into(),
                     WHITE
                 );
             }
-            f.draw(&self.camera, assets, gfx)
+            if a.draw(&self.camera, assets, gfx) {
+                num_actors = num_actors + 1;
+            }
         });
+        gfx.draw_text(&format!("Actors: {}", num_actors), font, 24., (8., 32.).into(), WHITE);
 
         let (point, color) = match self.aim_point {
             Some(point) => (point, (1., 1., 1., 0.5).into()),

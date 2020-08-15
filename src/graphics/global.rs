@@ -22,7 +22,7 @@ impl Uniforms {
     }
 
     pub fn update_view_proj(&mut self, camera: &camera::Camera) {
-        self.view_proj = camera::OPENGL_TO_WGPU_MATRIX * camera.build_view_projection_matrix();
+        self.view_proj = camera::OPENGL_TO_WGPU_MATRIX * camera.matrix;
     }
 }
 

@@ -33,6 +33,19 @@ impl Rect {
     }
 }
 
+pub fn is_point_inside_rect(point: Point2, rect: Rect, margin: Vector2) -> bool {
+    point.x + margin.x >= rect.position.x
+        && point.y + margin.y >= rect.position.y
+        && point.x - margin.x <= rect.position.x + rect.size.x
+        && point.y - margin.y <= rect.position.y + rect.size.y
+}
+
+pub fn is_world_point_inside_screen(matrix: Matrix4, point: Point3, margin: Vector2) -> bool {
+    let screen_point = matrix.transform_point(point);
+    let screen_point = Point2::new(screen_point.x, screen_point.y);
+    is_point_inside_rect(screen_point, Rect::new(-1., -1., 2., 2.), margin)
+}
+
 #[derive(Debug)]
 pub struct Plane {
     pub point: Point3,
@@ -41,10 +54,7 @@ pub struct Plane {
 
 impl Plane {
     pub fn new(point: Point3, normal: Vector3) -> Self {
-        Self {
-            point,
-            normal,
-        }
+        Self { point, normal }
     }
 }
 
@@ -56,10 +66,7 @@ pub struct Ray {
 
 impl Ray {
     pub fn new(start: Point3, direction: Vector3) -> Self {
-        Self {
-            start,
-            direction,
-        }
+        Self { start, direction }
     }
 }
 
