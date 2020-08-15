@@ -35,14 +35,14 @@ impl Actor {
 
         self.accelerate(wish_dir, wish_speed, ctx);
 
-        if !self.is_grounded {
-            self.velocity -= Vector3::unit_z() * ctx.config.physics.gravity * ctx.delta_time;
-        }
-
         self.position += self.velocity * ctx.delta_time;
     }
 
     fn check_ground(&mut self, ctx: &Context) {
+        if !self.is_grounded {
+            self.velocity -= Vector3::unit_z() * ctx.config.physics.gravity * ctx.delta_time;
+        }
+
         if self.velocity.z > 0. {
             return;
         }
