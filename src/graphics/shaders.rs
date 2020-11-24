@@ -23,8 +23,8 @@ impl Shaders {
 
     fn compile(device: &wgpu::Device, compiler: &mut shaderc::Compiler, src: &str, kind:shaderc::ShaderKind, name: &str, entry: &str) -> wgpu::ShaderModule {
         let spirv = compiler.compile_into_spirv(src, kind, name, entry, None).unwrap();
-        let data = wgpu::read_spirv(std::io::Cursor::new(spirv.as_binary_u8())).unwrap();
-        device.create_shader_module(&data)
+        let data = wgpu::util::make_spirv(&spirv.as_binary_u8());
+        device.create_shader_module(data)
     }
 
     pub fn new(
@@ -41,7 +41,7 @@ impl Shaders {
         let debug_vs = Self::compile(device, &mut compiler, debug_vs_src, shaderc::ShaderKind::Vertex, "debug.vert", "main");
         let debug_fs_src = include_str!("shaders/debug.frag");
         let debug_fs = Self::compile(device, &mut compiler, debug_fs_src, shaderc::ShaderKind::Fragment, "debug.frag", "main");
-        
+
         Ok(Self {
             vs: vs_module,
             fs: fs_module,

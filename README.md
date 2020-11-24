@@ -4,7 +4,7 @@ Isometric tactical shooter inspired by the Source mod [Neotokyo](https://store.s
 ![screenshot](screenshot.png)
 
 ## Technology
-Rendering using [wgpu-rs](https://github.com/gfx-rs/wgpu-rs) with architecture partly lifted from [vange-rs](https://github.com/kvark/vange-rs).
+Rendering using [wgpu-rs](https://github.com/gfx-rs/wgpu-rs) with architecture partially lifted from [vange-rs](https://github.com/kvark/vange-rs).
 
 ECS, networking and sound TBD.
 

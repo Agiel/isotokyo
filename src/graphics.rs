@@ -1,9 +1,10 @@
 use crate::camera;
-use crate::utils::*;
 use crate::config;
+use crate::utils::*;
 use cgmath::prelude::*;
-use wgpu_glyph::{ab_glyph, GlyphBrush, GlyphBrushBuilder, Section, Text, FontId};
 use std::{collections::HashMap, mem, sync::Arc};
+use wgpu_glyph::{ab_glyph, FontId, GlyphBrush, GlyphBrushBuilder, Section, Text};
+use wgpu::util::DeviceExt as _;
 
 pub mod debug;
 pub mod global;
@@ -40,14 +41,16 @@ struct Batcher {
 
 impl Batcher {
     pub fn new(device: &wgpu::Device) -> Self {
-        let vertex_buffer = device.create_buffer_with_data(
-            bytemuck::cast_slice(object::VERTICES),
-            wgpu::BufferUsage::VERTEX,
-        );
-        let index_buffer = device.create_buffer_with_data(
-            bytemuck::cast_slice(object::INDICES),
-            wgpu::BufferUsage::INDEX,
-        );
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("vertex_buffer"),
+            contents: bytemuck::cast_slice(object::VERTICES),
+            usage: wgpu::BufferUsage::VERTEX,
+        });
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("index_buffer"),
+            contents: bytemuck::cast_slice(object::INDICES),
+            usage: wgpu::BufferUsage::INDEX,
+        });
         Batcher {
             instances: HashMap::new(),
             instances_alpha: HashMap::new(),
@@ -56,7 +59,12 @@ impl Batcher {
         }
     }
 
-    pub fn add_quad(&mut self, texture: &Arc<texture::Texture>, instance: object::Instance, alpha: bool) {
+    pub fn add_quad(
+        &mut self,
+        texture: &Arc<texture::Texture>,
+        instance: object::Instance,
+        alpha: bool,
+    ) {
         let instances = match alpha {
             true => &mut self.instances_alpha,
             false => &mut self.instances,
@@ -73,22 +81,28 @@ impl Batcher {
             .push(instance.to_raw());
     }
 
-    pub fn draw<'a>(&'a mut self, pass: &mut wgpu::RenderPass<'a>, device: &wgpu::Device, object: &'a object::Context) {
+    pub fn draw<'a>(
+        &'a mut self,
+        pass: &mut wgpu::RenderPass<'a>,
+        device: &wgpu::Device,
+        object: &'a object::Context,
+    ) {
         let num_indices = object::INDICES.len() as u32;
-        pass.set_vertex_buffer(0, &self.vertex_buffer, 0, 0);
-        pass.set_index_buffer(&self.index_buffer, 0, 0);
+        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        pass.set_index_buffer(self.index_buffer.slice(..));
 
         pass.set_pipeline(&object.pipeline);
         for array in self.instances.values_mut() {
             if array.data.is_empty() {
                 continue;
             }
-            array.buffer = Some(device.create_buffer_with_data(
-                bytemuck::cast_slice(&array.data),
-                wgpu::BufferUsage::VERTEX,
-            ));
+            array.buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("instance"),
+                contents: bytemuck::cast_slice(&array.data),
+                usage: wgpu::BufferUsage::VERTEX,
+            }));
             pass.set_bind_group(1, array.texture.bind_group.as_ref().unwrap(), &[]);
-            pass.set_vertex_buffer(1, array.buffer.as_ref().unwrap(), 0, 0);
+            pass.set_vertex_buffer(1, array.buffer.as_ref().unwrap().slice(..));
             pass.draw_indexed(0..num_indices, 0, 0..array.data.len() as u32);
             array.data.clear();
         }
@@ -99,16 +113,16 @@ impl Batcher {
             if array.data.is_empty() {
                 continue;
             }
-            array.buffer = Some(device.create_buffer_with_data(
-                bytemuck::cast_slice(&array.data),
-                wgpu::BufferUsage::VERTEX,
-            ));
+            array.buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("instance_alpha"),
+                contents: bytemuck::cast_slice(&array.data),
+                usage: wgpu::BufferUsage::VERTEX,
+            }));
             pass.set_bind_group(1, array.texture.bind_group.as_ref().unwrap(), &[]);
-            pass.set_vertex_buffer(1, array.buffer.as_ref().unwrap(), 0, 0);
+            pass.set_vertex_buffer(1, array.buffer.as_ref().unwrap().slice(..));
             pass.draw_indexed(0..num_indices, 0, 0..array.data.len() as u32);
             array.data.clear();
         }
-
     }
 
     pub fn clear(&mut self) {
@@ -139,27 +153,34 @@ impl DebugLines {
         self.indices.clear();
     }
 
-    fn draw<'a>(&'a mut self, pass: &mut wgpu::RenderPass<'a>, device: &wgpu::Device, debug: &'a debug::Context) {
+    fn draw<'a>(
+        &'a mut self,
+        pass: &mut wgpu::RenderPass<'a>,
+        device: &wgpu::Device,
+        debug: &'a debug::Context,
+    ) {
         if self.vertices.is_empty() {
             return;
         }
 
         let num_indices = self.indices.len() as u32;
 
-        self.vertex_buffer = Some(device.create_buffer_with_data(
-            bytemuck::cast_slice(&self.vertices),
-            wgpu::BufferUsage::VERTEX,
-        ));
-        self.index_buffer = Some(device.create_buffer_with_data(
-            bytemuck::cast_slice(&self.indices),
-            wgpu::BufferUsage::INDEX,
-        ));
+        self.vertex_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("vertex_buffer"),
+            contents: bytemuck::cast_slice(&self.vertices),
+            usage: wgpu::BufferUsage::VERTEX,
+        }));
+        self.index_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("index_buffer"),
+            contents: bytemuck::cast_slice(&self.indices),
+            usage: wgpu::BufferUsage::INDEX,
+        }));
 
         self.clear();
 
         pass.set_pipeline(&debug.pipeline);
-        pass.set_vertex_buffer(0, self.vertex_buffer.as_ref().unwrap(), 0, 0);
-        pass.set_index_buffer(self.index_buffer.as_ref().unwrap(), 0, 0);
+        pass.set_vertex_buffer(0, self.vertex_buffer.as_ref().unwrap().slice(..));
+        pass.set_index_buffer(self.index_buffer.as_ref().unwrap().slice(..));
         pass.draw_indexed(0..num_indices, 0, 0..1);
     }
 
@@ -205,7 +226,11 @@ impl Render {
         let mut uniforms = global::Uniforms::new();
         uniforms.update_view_proj(camera);
         let global_staging = device
-            .create_buffer_with_data(bytemuck::bytes_of(&uniforms), wgpu::BufferUsage::COPY_SRC);
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("global_staging"),
+                contents: bytemuck::bytes_of(&uniforms),
+                usage: wgpu::BufferUsage::COPY_SRC,
+            });
         encoder.copy_buffer_to_buffer(
             &global_staging,
             0,
@@ -218,18 +243,18 @@ impl Render {
             color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
                 attachment: targets.color,
                 resolve_target: None,
-                load_op: wgpu::LoadOp::Clear,
-                store_op: wgpu::StoreOp::Store,
-                clear_color: CLEAR_COLOR,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(CLEAR_COLOR),
+                    store: true,
+                },
             }],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
                 attachment: targets.depth,
-                depth_load_op: wgpu::LoadOp::Clear,
-                depth_store_op: wgpu::StoreOp::Store,
-                clear_depth: 1.0,
-                stencil_load_op: wgpu::LoadOp::Clear,
-                stencil_store_op: wgpu::StoreOp::Store,
-                clear_stencil: 0,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: true,
+                }),
+                stencil_ops: None,
             }),
         });
 
@@ -256,6 +281,10 @@ pub struct Graphics {
     depth_target: wgpu::TextureView,
     present_mode: wgpu::PresentMode,
 
+    staging_belt: wgpu::util::StagingBelt,
+    local_pool: futures::executor::LocalPool,
+    local_spawner: futures::executor::LocalSpawner,
+
     render: Render,
     batcher: Batcher,
     debug_lines: DebugLines,
@@ -272,7 +301,8 @@ impl Graphics {
             depth: 1,
         };
 
-        let surface = wgpu::Surface::create(window);
+        let instance = wgpu::Instance::new(wgpu::BackendBit::all());
+        let surface = unsafe { instance.create_surface(window) };
 
         let present_mode = match config.graphics.present_mode {
             config::PresentMode::Immediate => wgpu::PresentMode::Immediate,
@@ -280,24 +310,25 @@ impl Graphics {
             config::PresentMode::Fifo => wgpu::PresentMode::Fifo,
         };
 
-        let adapter = wgpu::Adapter::request(
-            &wgpu::RequestAdapterOptions {
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::Default,
                 compatible_surface: Some(&surface),
-            },
-            wgpu::BackendBit::PRIMARY, // Vulkan + Metal + DX12 + Browser WebGPU
-        )
-        .await
-        .unwrap();
+            })
+            .await
+            .unwrap();
 
         let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                extensions: wgpu::Extensions {
-                    anisotropic_filtering: false,
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    features: wgpu::Features::empty(),
+                    limits: wgpu::Limits::default(),
+                    shader_validation: false,
                 },
-                limits: Default::default(),
-            })
-            .await;
+                None,
+            )
+            .await
+            .unwrap();
 
         let sc_desc = wgpu::SwapChainDescriptor {
             usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
@@ -312,14 +343,17 @@ impl Graphics {
             .create_texture(&wgpu::TextureDescriptor {
                 label: Some("Depth"),
                 size: extent,
-                array_layer_count: 1,
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format: DEPTH_FORMAT,
                 usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
             })
-            .create_default_view();
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let staging_belt = wgpu::util::StagingBelt::new(1024);
+        let local_pool = futures::executor::LocalPool::new();
+        let local_spawner = local_pool.spawner();
 
         let render = Render::new(&device);
         let batcher = Batcher::new(&device);
@@ -334,6 +368,9 @@ impl Graphics {
             swap_chain,
             extent,
             depth_target,
+            staging_belt,
+            local_pool,
+            local_spawner,
             render,
             batcher,
             debug_lines,
@@ -362,24 +399,23 @@ impl Graphics {
             .create_texture(&wgpu::TextureDescriptor {
                 label: Some("Depth"),
                 size: self.extent,
-                array_layer_count: 1,
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format: DEPTH_FORMAT,
                 usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
             })
-            .create_default_view();
+            .create_view(&wgpu::TextureViewDescriptor::default());
 
         self.render.resize(self.extent, &self.device);
     }
 
     pub fn flush(&mut self, camera: &camera::Camera) {
-        match self.swap_chain.get_next_texture() {
+        match self.swap_chain.get_current_frame() {
             Ok(frame) => {
                 let targets = ScreenTargets {
                     extent: self.extent,
-                    color: &frame.view,
+                    color: &frame.output.view,
                     depth: &self.depth_target,
                 };
                 let mut encoder =
@@ -399,18 +435,29 @@ impl Graphics {
                 let device = &self.device;
                 let extent = &self.extent;
                 if let Some(glyph_brush) = &mut self.glyph_brush {
-                    glyph_brush.draw_queued(
-                        device,
-                        &mut encoder,
-                        &targets.color,
-                        extent.width,
-                        extent.height
-                    ).expect("Draw queued text");
+                    glyph_brush
+                        .draw_queued(
+                            device,
+                            &mut self.staging_belt,
+                            &mut encoder,
+                            &targets.color,
+                            extent.width,
+                            extent.height,
+                        )
+                        .expect("Draw queued text");
                 }
 
+                self.staging_belt.finish();
                 self.batcher.clear();
                 self.debug_lines.clear();
-                self.queue.submit(&[encoder.finish()]);
+                self.queue.submit(Some(encoder.finish()));
+
+                // Recall unused staging buffers
+                use futures::task::SpawnExt;
+                self.local_spawner
+                    .spawn(self.staging_belt.recall())
+                    .expect("Recall staging belt");
+                self.local_pool.run_until_stalled();
             }
             Err(_) => {}
         };
@@ -421,15 +468,15 @@ impl Graphics {
         bytes: &[u8],
         label: &str,
     ) -> Result<Arc<texture::Texture>, texture::ImageError> {
-        let (mut texture, cmds) = texture::Texture::from_bytes(&self.device, bytes, label)?;
+        let mut texture = texture::Texture::from_bytes(&self.device, &self.queue, bytes, label)?;
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &self.render.object.bind_group_layout,
-            bindings: &[
-                wgpu::Binding {
+            entries: &[
+                wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::TextureView(&texture.view),
                 },
-                wgpu::Binding {
+                wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Sampler(&texture.sampler),
                 },
@@ -437,20 +484,21 @@ impl Graphics {
             label: Some(&format!("{}_bind_group", label)),
         });
         texture.bind_group = Some(bind_group);
-        self.queue.submit(&[cmds]);
         Ok(Arc::new(texture))
     }
 
-    pub fn load_font_bytes(&mut self, name: &str, bytes: Vec<u8>) -> Result<FontId, ab_glyph::InvalidFont> {
+    pub fn load_font_bytes(
+        &mut self,
+        name: &str,
+        bytes: Vec<u8>,
+    ) -> Result<FontId, ab_glyph::InvalidFont> {
         let mut font_id = FontId(0);
         let font = ab_glyph::FontArc::try_from_vec(bytes)?;
         let glyph_brush = if let Some(glyph_brush) = &mut self.glyph_brush {
             font_id = glyph_brush.add_font(font);
             None
         } else {
-            Some(GlyphBrushBuilder::using_font(font)
-                .build(&self.device, COLOR_FORMAT)
-            )
+            Some(GlyphBrushBuilder::using_font(font).build(&self.device, COLOR_FORMAT))
         };
         if glyph_brush.is_some() {
             self.glyph_brush = glyph_brush;
@@ -459,7 +507,14 @@ impl Graphics {
         Ok(font_id)
     }
 
-    pub fn draw_text(&mut self, text: &str, font: FontId, size: f32, position: Vector2, color: (f32, f32, f32, f32)) {
+    pub fn draw_text(
+        &mut self,
+        text: &str,
+        font: FontId,
+        size: f32,
+        position: Vector2,
+        color: (f32, f32, f32, f32),
+    ) {
         if let Some(glyph_brush) = &mut self.glyph_brush {
             glyph_brush.queue(Section {
                 screen_position: (position.x, position.y),
@@ -473,7 +528,13 @@ impl Graphics {
         }
     }
 
-    pub fn draw_plane(&mut self, texture: &Arc<texture::Texture>, center: Point3, size: f32, color: Vector4) {
+    pub fn draw_plane(
+        &mut self,
+        texture: &Arc<texture::Texture>,
+        center: Point3,
+        size: f32,
+        color: Vector4,
+    ) {
         let instance = object::Instance {
             position: center,
             scale: Vector3::new(size, size, size),
@@ -506,7 +567,7 @@ impl Graphics {
             source.position.x / texture.size.width as f32,
             source.position.y / texture.size.height as f32,
             source.size.x / texture.size.width as f32,
-            source.size.y / texture.size.height as f32
+            source.size.y / texture.size.height as f32,
         );
 
         let instance = object::Instance {

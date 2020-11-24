@@ -36,15 +36,16 @@ impl Context {
     pub fn new(device: &wgpu::Device) -> Self {
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Global"),
-            bindings: &[
+            entries: &[
                 // View matrix
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStage::all(),
                     ty: wgpu::BindingType::UniformBuffer {
                         dynamic: false,
-                        //min_binding_size: None,
+                        min_binding_size: None,
                     },
+                    count: None,
                 },
             ],
         });
@@ -52,18 +53,15 @@ impl Context {
             label: Some("Uniform"),
             size: mem::size_of::<Uniforms>() as wgpu::BufferAddress,
             usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
-            //mapped_at_creation: false,
+            mapped_at_creation: false,
         });
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Global"),
             layout: &bind_group_layout,
-            bindings: &[
-                wgpu::Binding {
+            entries: &[
+                wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::Buffer {
-                        buffer: &uniform_buf,
-                        range: 0..mem::size_of::<Uniforms>() as wgpu::BufferAddress,
-                    },
+                    resource: wgpu::BindingResource::Buffer(uniform_buf.slice(..)),
                 },
             ],
         });

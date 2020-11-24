@@ -17,12 +17,22 @@ pub struct Vertex {
 unsafe impl bytemuck::Pod for Vertex {}
 unsafe impl bytemuck::Zeroable for Vertex {}
 
-impl Vertex {
-    fn desc<'a>() -> wgpu::VertexBufferDescriptor<'a> {
+pub struct VertexDesc {
+    attributes: [wgpu::VertexAttributeDescriptor; 2],
+}
+
+impl VertexDesc {
+    pub fn new() -> Self {
+        VertexDesc {
+            attributes: wgpu::vertex_attr_array![0 => Float3, 1 => Float4],
+        }
+    }
+
+    pub fn buffer_desc(&self) -> wgpu::VertexBufferDescriptor {
         wgpu::VertexBufferDescriptor {
             stride: mem::size_of::<Vertex>() as wgpu::BufferAddress,
             step_mode: wgpu::InputStepMode::Vertex,
-            attributes: &wgpu::vertex_attr_array![0 => Float3, 1 => Float4],
+            attributes: &self.attributes,
         }
     }
 }
@@ -71,8 +81,10 @@ impl Context {
         device: &wgpu::Device,
         shaders: &Shaders,
     ) -> wgpu::RenderPipeline {
+        let vertex_desc = VertexDesc::new();
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            layout,
+            label: Some("debug_pipe"),
+            layout: Some(layout),
             vertex_stage: wgpu::ProgrammableStageDescriptor {
                 module: &shaders.debug_vs,
                 entry_point: "main",
@@ -84,6 +96,7 @@ impl Context {
             rasterization_state: Some(wgpu::RasterizationStateDescriptor {
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: wgpu::CullMode::Back,
+                clamp_depth: false,
                 depth_bias: 0,
                 depth_bias_slope_scale: 0.0,
                 depth_bias_clamp: 0.0,
@@ -107,14 +120,11 @@ impl Context {
                 format: DEPTH_FORMAT,
                 depth_write_enabled: true,
                 depth_compare: wgpu::CompareFunction::LessEqual,
-                stencil_front: wgpu::StencilStateFaceDescriptor::IGNORE,
-                stencil_back: wgpu::StencilStateFaceDescriptor::IGNORE,
-                stencil_read_mask: !0,
-                stencil_write_mask: !0,
+                stencil: wgpu::StencilStateDescriptor::default(),
             }),
             vertex_state: wgpu::VertexStateDescriptor {
                 index_format: wgpu::IndexFormat::Uint16,
-                vertex_buffers: &[Vertex::desc()],
+                vertex_buffers: &[vertex_desc.buffer_desc()],
             },
             sample_count: 1,
             alpha_to_coverage_enabled: false,
@@ -124,7 +134,9 @@ impl Context {
 
     pub fn new(device: &wgpu::Device, global: &GlobalContext, shaders: &Shaders) -> Self {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("debug"),
             bind_group_layouts: &[&global.bind_group_layout],
+            push_constant_ranges: &[],
         });
         let pipeline = Self::create_pipeline(&pipeline_layout, device, shaders);
 
