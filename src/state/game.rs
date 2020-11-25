@@ -189,8 +189,11 @@ impl State for GameState {
         let mut num_actors = 0;
         self.actors.iter().for_each(|a| {
             if a.is_local_player {
+                // Clear out vertical component
+                let mut velocity = a.velocity.clone();
+                velocity.z = 0.0;
                 gfx.draw_text(
-                    &format!("Speed: {:.2}", a.velocity.magnitude()),
+                    &format!("Speed: {:.2}", velocity.magnitude()),
                     font,
                     24.,
                     (8., 48.).into(),
