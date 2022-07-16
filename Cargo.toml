@@ -1,20 +1,20 @@
 [package]
 name = "isotokyo"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Agiel <agiel.negura@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-wgpu = "0.6"
-shaderc = "0.6"
-image = "0.23"
-wgpu_glyph = "0.10"
-winit = { version = "0.22", features = [ "serde" ] }
-cgmath = "0.17"
-futures = "0.3"
-bytemuck = "1.4"
-serde = { version = "1.0", features = [ "derive" ] }
-ron = "0.6"
-rand = "0.7"
+bevy = { version = "0.7.0", features = ["dynamic"] }
+rand = "0.8.5"
+
+# Enable a small amount of optimization in debug mode
+[profile.dev]
+opt-level = 1
+
+# Enable high optimizations for dependencies (incl. Bevy), but not for our code:
+[profile.dev.package."*"]
+opt-level = 3
+
