@@ -1,12 +1,13 @@
-mod sprites;
 mod player;
+mod sprites;
 mod utils;
 
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::pbr::wireframe::{Wireframe, WireframePlugin};
 use bevy::prelude::*;
-use sprites::*;
+use bevy_rapier3d::prelude::*;
 use player::*;
+use sprites::*;
 // use rand::{thread_rng, Rng};
 
 const MAP_SIZE: i32 = 128;
@@ -23,6 +24,8 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
+        .add_plugin(RapierDebugRenderPlugin::default())
         .add_plugin(WireframePlugin)
         .add_plugin(Sprite3dPlugin)
         .add_plugin(PlayerPlugin)
@@ -101,8 +104,6 @@ fn setup(
     });
 }
 
-
-
 fn generate_map(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -119,8 +120,8 @@ fn generate_map(
     let mesh_handle = meshes.add(Mesh::from(shape::Plane { size: 1.0 }));
 
     // plane
-    for x in -MAP_SIZE..MAP_SIZE {
-        for y in -MAP_SIZE..MAP_SIZE {
+    for x in -MAP_SIZE / 2..MAP_SIZE / 2 {
+        for y in -MAP_SIZE / 2..MAP_SIZE / 2 {
             commands.spawn_bundle(PbrBundle {
                 mesh: mesh_handle.clone(),
                 material: material_handle.clone(),
@@ -129,6 +130,9 @@ fn generate_map(
             });
         }
     }
+    commands
+        .spawn_bundle(TransformBundle::from(Transform::from_xyz(0.0, -0.05, 0.0)))
+        .insert(Collider::cuboid(MAP_SIZE as f32, 0.1, MAP_SIZE as f32));
 
     // light
     commands.spawn_bundle(PointLightBundle {
@@ -138,7 +142,7 @@ fn generate_map(
 
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
-        brightness: 0.05,
+        brightness: 0.1,
     });
 }
 
