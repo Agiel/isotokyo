@@ -36,6 +36,8 @@ fn setup_player(
     let material_handle = materials.add(StandardMaterial {
         base_color_texture: Some(texture_handle.clone()),
         alpha_mode: AlphaMode::Blend,
+        reflectance: 0.0,
+        metallic: 0.0,
         perceptual_roughness: 1.0,
         ..default()
     });
@@ -45,19 +47,14 @@ fn setup_player(
     }));
 
     commands
-        .spawn_bundle(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-            material: materials.add(StandardMaterial {
-                base_color: Color::rgba(0.0, 0.0, 0.0, 0.0),
-                alpha_mode: AlphaMode::Blend,
-                ..default()
-            }),
-            transform: Transform::from_xyz(4.0, 5.5, 4.0),
+        .spawn_bundle(TransformBundle {
+            local: Transform::from_xyz(4.0, 0.5, 4.0),
             ..default()
         })
         .insert(Player::default())
         .insert(RigidBody::Dynamic)
         .insert(Collider::capsule_y(0.25, 0.25))
+        .insert(CollisionGroups::new(0b0010, 0b1111))
         .insert(Velocity::default())
         .insert(LockedAxes::ROTATION_LOCKED)
         .insert(Friction {
@@ -65,6 +62,7 @@ fn setup_player(
             combine_rule: CoefficientCombineRule::Min,
         })
         .with_children(|parent| {
+            // Sprite
             parent
                 .spawn_bundle(PbrBundle {
                     mesh: mesh_handle,
@@ -73,6 +71,30 @@ fn setup_player(
                 })
                 .insert(Billboard)
                 .insert(Animation::new(8, 0.1, true));
+            // Light
+            parent.spawn_bundle(PointLightBundle {
+                point_light: PointLight {
+                    intensity: 2400.0,
+                    ..default()
+                },
+                transform: Transform::from_xyz(0.0, 10.0, 0.0),
+                ..default()
+            });
+            // Blob shadow
+            parent
+                .spawn_bundle(PbrBundle {
+                    mesh: meshes.add(Mesh::from(shape::Plane { size: 1.0 })),
+                    material: materials.add(StandardMaterial {
+                        base_color: Color::BLACK,
+                        base_color_texture: Some(asset_server.load("textures/fx/blob_shadow.png")),
+                        alpha_mode: AlphaMode::Blend,
+                        unlit: true,
+                        ..default()
+                    }),
+                    transform: Transform::from_xyz(0.0, -0.5, 0.0),
+                    ..default()
+                })
+                .insert(BlobShadow);
         });
 
     // Crosshair
@@ -164,10 +186,10 @@ fn player_move(
     physics_config: Res<RapierConfiguration>,
     physics_context: Res<RapierContext>,
     time: Res<Time>,
-    mut query: Query<(&mut Player, &mut Velocity, Entity, &Transform)>,
+    mut query: Query<(&mut Player, &mut Velocity, &Transform)>,
 ) {
-    for (mut player, mut velocity, entity, transform) in query.iter_mut() {
-        player.is_grounded = check_grounded(entity, &velocity, &transform, &physics_context);
+    for (mut player, mut velocity, transform) in query.iter_mut() {
+        player.is_grounded = check_grounded(&velocity, &transform, &physics_context);
 
         if player.is_grounded && player_input.jump {
             player_input.jump = false;
@@ -192,7 +214,6 @@ fn player_move(
 }
 
 fn check_grounded(
-    entity: Entity,
     velocity: &Velocity,
     transform: &Transform,
     physics_context: &RapierContext,
@@ -206,7 +227,7 @@ fn check_grounded(
         -Vec3::Y,
         0.5,
         true,
-        QueryFilter::new().exclude_rigid_body(entity),
+        QueryFilter::new().groups(InteractionGroups::new(0b0001, 0b0001)),
     ) {
         return true;
     }
@@ -261,7 +282,7 @@ fn camera_follow_player(
     let player_transform = player_query.single();
     let crosshair_transform = crosshair_query.single();
     let mut transform = query.single_mut();
-    let camera_offset = Vec3::new(5.0, 5.0, 5.0);
+    let camera_offset = Vec3::ONE * 6.0;
     transform.translation = player_transform.translation
         + (crosshair_transform.translation - player_transform.translation) / 6.0
         + camera_offset;

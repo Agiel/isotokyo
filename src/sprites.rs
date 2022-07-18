@@ -1,4 +1,5 @@
 use bevy::{prelude::*, render::render_resource::TextureUsages};
+use bevy_rapier3d::prelude::*;
 
 pub struct Sprite3dPlugin;
 
@@ -6,7 +7,8 @@ impl Plugin for Sprite3dPlugin {
     fn build(&self, app: &mut App) {
         app.add_system(set_texture_filters_to_nearest)
             .add_system_to_stage(CoreStage::Last, animate_sprites)
-            .add_system_to_stage(CoreStage::Last, align_billboards.after(animate_sprites));
+            .add_system_to_stage(CoreStage::Last, align_billboards.after(animate_sprites))
+            .add_system_to_stage(CoreStage::Last, project_blob_shadows);
     }
 }
 
@@ -110,5 +112,34 @@ fn align_billboards(
     for mut transform in query.iter_mut() {
         let translation = transform.translation;
         transform.look_at(translation + cam_transform.forward(), Vec3::Y);
+    }
+}
+
+#[derive(Component)]
+pub struct BlobShadow;
+
+fn project_blob_shadows(
+    physics_context: Res<RapierContext>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut query: Query<(&mut GlobalTransform, &Handle<StandardMaterial>), With<BlobShadow>>,
+) {
+    for (mut transform, material_handle) in query.iter_mut() {
+        if !transform.is_changed() {
+            continue;
+        }
+        if let Some((_entity, toi)) = physics_context.cast_ray(
+            transform.translation,
+            -Vec3::Y,
+            1.0,
+            true,
+            QueryFilter::new().groups(InteractionGroups::new(0b0001, 0b0001)),
+        ) {
+            transform.translation.y -= toi;
+            // Offset towards camera to avoid clipping through ground
+            transform.translation += Vec3::ONE * 0.01;
+            if let Some(material) = materials.get_mut(material_handle) {
+                material.base_color = Color::rgba(0.0, 0.0, 0.0, 1.0 - toi);
+            }
+        }
     }
 }
