@@ -8,6 +8,8 @@ const GROUND_SPEED: f32 = 3.0;
 const AIR_SPEED: f32 = 0.5;
 const GROUND_ACCEL: f32 = 10.0;
 const AIR_ACCEL: f32 = 1.0;
+const GROUND_FRICTION: f32 = 5.0;
+const AIR_FRICTION: f32 = 0.0;
 
 pub struct PlayerPlugin;
 
@@ -34,6 +36,7 @@ fn setup_player(
     let material_handle = materials.add(StandardMaterial {
         base_color_texture: Some(texture_handle.clone()),
         alpha_mode: AlphaMode::Blend,
+        perceptual_roughness: 1.0,
         ..default()
     });
     let mesh_handle = meshes.add(Mesh::from(shape::Quad {
@@ -57,7 +60,10 @@ fn setup_player(
         .insert(Collider::capsule_y(0.25, 0.25))
         .insert(Velocity::default())
         .insert(LockedAxes::ROTATION_LOCKED)
-        // .insert(Wireframe)
+        .insert(Friction {
+            coefficient: 0.0,
+            combine_rule: CoefficientCombineRule::Min,
+        })
         .with_children(|parent| {
             parent
                 .spawn_bundle(PbrBundle {
@@ -169,11 +175,13 @@ fn player_move(
             velocity.linvel.y = (2.0 * JUMP_HEIGHT * -physics_config.gravity.y).sqrt();
         }
 
+        friction(&mut velocity, player.is_grounded, time.delta_seconds());
+
         let wish_dir =
             transform.forward() * player_input.forward + transform.right() * player_input.right;
         let wish_speed = GROUND_SPEED;
 
-        player_accelerate(
+        accelerate(
             &mut velocity,
             wish_dir,
             wish_speed,
@@ -206,7 +214,25 @@ fn check_grounded(
     return false;
 }
 
-fn player_accelerate(
+fn friction(velocity: &mut Velocity, is_grounded: bool, delta_time: f32) {
+    let current_speed = velocity.linvel.length();
+    if current_speed == 0.0 {
+        return;
+    }
+
+    let friction = if is_grounded {
+        GROUND_FRICTION
+    } else {
+        AIR_FRICTION
+    };
+
+    // TODO: Use stop_speed instead of walk_speed?
+    let drop = current_speed.max(GROUND_SPEED) * friction * delta_time;
+    let new_speed = (current_speed - drop).max(0.0);
+    velocity.linvel *= new_speed / current_speed;
+}
+
+fn accelerate(
     velocity: &mut Velocity,
     wish_dir: Vec3,
     wish_speed: f32,
