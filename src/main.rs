@@ -1,3 +1,5 @@
+mod config;
+mod input;
 mod player;
 mod sprites;
 mod utils;
@@ -5,6 +7,8 @@ mod utils;
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
+use config::ConfigPlugin;
+use input::InputPlugin;
 use player::*;
 use rand::{thread_rng, Rng};
 use sprites::*;
@@ -17,7 +21,7 @@ fn main() {
             title: "Isotokyo".into(),
             width: 1280.,
             height: 720.,
-            ..Default::default()
+            ..default()
         })
         .insert_resource(ClearColor(Color::rgb(0.125, 0.125, 0.125)))
         .add_plugins(DefaultPlugins)
@@ -25,6 +29,8 @@ fn main() {
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(RapierDebugRenderPlugin::default())
+        .add_plugin(ConfigPlugin)
+        .add_plugin(InputPlugin)
         .add_plugin(Sprite3dPlugin)
         .add_plugin(PlayerPlugin)
         .add_startup_system(setup)
@@ -66,7 +72,7 @@ fn generate_map(
                 mesh: mesh_handle.clone(),
                 material: material_handle.clone(),
                 transform: Transform::from_xyz(x as f32, 0.0, y as f32),
-                ..Default::default()
+                ..default()
             });
         }
     }
@@ -126,7 +132,7 @@ fn generate_map(
                     .spawn_bundle(PbrBundle {
                         mesh: mesh_handle.clone(),
                         material: material_handle.clone(),
-                        ..Default::default()
+                        ..default()
                     })
                     .insert(Billboard);
                 parent
@@ -152,18 +158,18 @@ fn generate_map(
         mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
         material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
         transform: Transform::from_xyz(-1.5, 0.5, -1.5),
-        ..Default::default()
+        ..default()
     });
 
     commands.spawn_bundle(PbrBundle {
         mesh: meshes.add(Mesh::from(shape::Capsule {
             radius: 0.25,
             depth: 0.5,
-            ..Default::default()
+            ..default()
         })),
         material: materials.add(Color::rgb(0.0, 0.7, 0.0).into()),
         transform: Transform::from_xyz(0., 0.5, 0.),
-        ..Default::default()
+        ..default()
     });
 }
 

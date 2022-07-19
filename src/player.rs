@@ -1,15 +1,9 @@
+use crate::config::Config;
+use crate::input::*;
 use crate::sprites::*;
 use crate::utils::*;
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
-
-const JUMP_HEIGHT: f32 = 0.5;
-const GROUND_SPEED: f32 = 3.0;
-const AIR_SPEED: f32 = 0.5;
-const GROUND_ACCEL: f32 = 10.0;
-const AIR_ACCEL: f32 = 1.0;
-const GROUND_FRICTION: f32 = 5.0;
-const AIR_FRICTION: f32 = 0.0;
 
 pub struct PlayerPlugin;
 
@@ -131,7 +125,7 @@ struct PlayerInput {
 }
 
 fn player_input(
-    keyboard_input: Res<Input<KeyCode>>,
+    input: Res<Input<InputAction>>,
     windows: Res<Windows>,
     images: Res<Assets<Image>>,
     mut player_input: ResMut<PlayerInput>,
@@ -140,20 +134,20 @@ fn player_input(
 ) {
     player_input.forward = 0.0;
     player_input.right = 0.0;
-    if keyboard_input.pressed(KeyCode::W) || keyboard_input.pressed(KeyCode::Up) {
+    if input.pressed(InputAction::Forward) {
         player_input.forward += 1.0;
     }
-    if keyboard_input.pressed(KeyCode::S) || keyboard_input.pressed(KeyCode::Down) {
+    if input.pressed(InputAction::Back) {
         player_input.forward += -1.0;
     }
-    if keyboard_input.pressed(KeyCode::D) || keyboard_input.pressed(KeyCode::Right) {
+    if input.pressed(InputAction::Right) {
         player_input.right += 1.0;
     }
-    if keyboard_input.pressed(KeyCode::A) || keyboard_input.pressed(KeyCode::Left) {
+    if input.pressed(InputAction::Left) {
         player_input.right += -1.0;
     }
-    player_input.jump = (player_input.jump || keyboard_input.just_pressed(KeyCode::Space))
-        && !keyboard_input.just_released(KeyCode::Space);
+    player_input.jump = (player_input.jump || input.just_pressed(InputAction::Jump))
+        && !input.just_released(InputAction::Jump);
 
     let (camera, camera_transform) = cam_query.single();
     if let Some(ray) = Ray3d::from_screenspace(&windows, &images, &camera, &camera_transform) {
@@ -183,6 +177,7 @@ fn look_at_crosshair(
 
 fn player_move(
     mut player_input: ResMut<PlayerInput>,
+    config: Res<Config>,
     physics_config: Res<RapierConfiguration>,
     physics_context: Res<RapierContext>,
     time: Res<Time>,
@@ -194,20 +189,27 @@ fn player_move(
         if player.is_grounded && player_input.jump {
             player_input.jump = false;
             player.is_grounded = false;
-            velocity.linvel.y = (2.0 * JUMP_HEIGHT * -physics_config.gravity.y).sqrt();
+            velocity.linvel.y =
+                (2.0 * config.physics.jump_height * -physics_config.gravity.y).sqrt();
         }
 
-        friction(&mut velocity, player.is_grounded, time.delta_seconds());
+        friction(
+            &mut velocity,
+            player.is_grounded,
+            &config,
+            time.delta_seconds(),
+        );
 
         let wish_dir =
             transform.forward() * player_input.forward + transform.right() * player_input.right;
-        let wish_speed = GROUND_SPEED;
+        let wish_speed = config.physics.ground_speed;
 
         accelerate(
             &mut velocity,
             wish_dir,
             wish_speed,
             player.is_grounded,
+            &config,
             time.delta_seconds(),
         );
     }
@@ -235,20 +237,20 @@ fn check_grounded(
     return false;
 }
 
-fn friction(velocity: &mut Velocity, is_grounded: bool, delta_time: f32) {
+fn friction(velocity: &mut Velocity, is_grounded: bool, config: &Config, delta_time: f32) {
     let current_speed = velocity.linvel.length();
     if current_speed == 0.0 {
         return;
     }
 
     let friction = if is_grounded {
-        GROUND_FRICTION
+        config.physics.ground_friction
     } else {
-        AIR_FRICTION
+        config.physics.air_friction
     };
 
     // TODO: Use stop_speed instead of walk_speed?
-    let drop = current_speed.max(GROUND_SPEED) * friction * delta_time;
+    let drop = current_speed.max(config.physics.ground_speed) * friction * delta_time;
     let new_speed = (current_speed - drop).max(0.0);
     velocity.linvel *= new_speed / current_speed;
 }
@@ -258,16 +260,25 @@ fn accelerate(
     wish_dir: Vec3,
     wish_speed: f32,
     is_grounded: bool,
+    config: &Config,
     delta_time: f32,
 ) {
-    let wsh_speed = if !is_grounded { AIR_SPEED } else { wish_speed };
+    let wsh_speed = if !is_grounded {
+        config.physics.air_speed
+    } else {
+        wish_speed
+    };
     let current_speed = velocity.linvel.dot(wish_dir);
     let add_speed = wsh_speed - current_speed;
     if add_speed <= 0.0 {
         return;
     }
 
-    let accel = if is_grounded { GROUND_ACCEL } else { AIR_ACCEL };
+    let accel = if is_grounded {
+        config.physics.ground_accel
+    } else {
+        config.physics.air_accel
+    };
 
     let accel_speed = add_speed.min(accel * wish_speed * delta_time);
 
