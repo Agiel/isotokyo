@@ -2,9 +2,9 @@ mod config;
 mod input;
 mod player;
 mod sprites;
+mod ui;
 mod utils;
 
-use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use config::ConfigPlugin;
@@ -12,6 +12,7 @@ use input::InputPlugin;
 use player::*;
 use rand::{thread_rng, Rng};
 use sprites::*;
+use ui::UiPlugin;
 
 const MAP_SIZE: i32 = 64;
 
@@ -25,26 +26,28 @@ fn main() {
         })
         .insert_resource(ClearColor(Color::rgb(0.125, 0.125, 0.125)))
         .add_plugins(DefaultPlugins)
-        .add_plugin(LogDiagnosticsPlugin::default())
-        .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         // .add_plugin(RapierDebugRenderPlugin::default())
         .add_plugin(ConfigPlugin)
         .add_plugin(InputPlugin)
         .add_plugin(Sprite3dPlugin)
         .add_plugin(PlayerPlugin)
+        .add_plugin(UiPlugin)
         .add_startup_system(setup)
         .add_startup_system(generate_map)
         .add_system(bevy::input::system::exit_on_esc_system)
         .run();
 }
 
+#[derive(Component)]
+struct MainCamera;
+
 fn setup(mut commands: Commands) {
     // Set up the camera
     let mut camera = OrthographicCameraBundle::new_3d();
     camera.orthographic_projection.scale = 720.0 / 2.0 / 64.0;
     camera.transform = Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y);
-    commands.spawn_bundle(camera);
+    commands.spawn_bundle(camera).insert(MainCamera);
 }
 
 fn generate_map(
@@ -171,13 +174,4 @@ fn generate_map(
         transform: Transform::from_xyz(0., 0.5, 0.),
         ..default()
     });
-}
-
-#[derive(Deref, DerefMut)]
-struct PrintingTimer(Timer);
-
-impl Default for PrintingTimer {
-    fn default() -> Self {
-        Self(Timer::from_seconds(1.0, true))
-    }
 }

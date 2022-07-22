@@ -1,3 +1,4 @@
+use crate::MainCamera;
 use crate::config::Config;
 use crate::input::*;
 use crate::sprites::*;
@@ -117,7 +118,7 @@ fn setup_player(
 }
 
 #[derive(Component, Default)]
-struct Player {
+pub struct Player {
     is_grounded: bool,
 }
 
@@ -138,7 +139,7 @@ fn player_input(
     images: Res<Assets<Image>>,
     mut player_input: ResMut<PlayerInput>,
     _mouse_button_input: Res<Input<MouseButton>>,
-    cam_query: Query<(&Camera, &Transform)>,
+    cam_query: Query<(&Camera, &Transform), With<MainCamera>>,
 ) {
     player_input.forward = 0.0;
     player_input.right = 0.0;
@@ -306,9 +307,9 @@ fn update_sequence(
 }
 
 fn camera_follow_player(
-    mut query: Query<&mut Transform, With<Camera>>,
-    player_query: Query<&Transform, (With<Player>, Without<Camera>)>,
-    crosshair_query: Query<&Transform, (With<Crosshair>, Without<Camera>, Without<Player>)>,
+    mut query: Query<&mut Transform, With<MainCamera>>,
+    player_query: Query<&Transform, (With<Player>, Without<MainCamera>)>,
+    crosshair_query: Query<&Transform, (With<Crosshair>, Without<MainCamera>, Without<Player>)>,
 ) {
     let player_transform = player_query.single();
     let crosshair_transform = crosshair_query.single();

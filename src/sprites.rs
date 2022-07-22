@@ -8,6 +8,8 @@ use bevy::{
 use bevy_rapier3d::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::MainCamera;
+
 pub struct Sprite3dPlugin;
 
 impl Plugin for Sprite3dPlugin {
@@ -206,8 +208,8 @@ fn animate_sprites(
 }
 
 fn align_billboards(
-    mut query: Query<&mut GlobalTransform, (With<Billboard>, Without<Camera>)>,
-    cam_query: Query<&GlobalTransform, With<Camera>>,
+    mut query: Query<&mut GlobalTransform, (With<Billboard>, Without<MainCamera>)>,
+    cam_query: Query<&GlobalTransform, With<MainCamera>>,
 ) {
     let cam_transform = cam_query.single();
     for mut transform in query.iter_mut() {
