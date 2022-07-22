@@ -36,7 +36,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 position_type: PositionType::Absolute,
                 position: Rect {
                     top: Val::Px(0.0),
-                    left: Val::Px(0.0),
+                    left: Val::Px(12.0),
                     ..default()
                 },
                 ..default()
@@ -63,7 +63,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 position_type: PositionType::Absolute,
                 position: Rect {
                     top: Val::Px(20.0),
-                    left: Val::Px(0.0),
+                    left: Val::Px(12.0),
                     ..default()
                 },
                 ..default()

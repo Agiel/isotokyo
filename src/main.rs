@@ -120,6 +120,7 @@ fn generate_map(
         size: Vec2::new(1.5, 2.0),
         ..default()
     }));
+    let plane_handle = meshes.add(Mesh::from(shape::Plane { size: 1.0 }));
     for _ in 0..128 {
         let mut rng = thread_rng();
         let x = rng.gen::<f32>() * MAP_SIZE as f32 - (MAP_SIZE / 2) as f32;
@@ -140,7 +141,7 @@ fn generate_map(
                     .insert(Billboard);
                 parent
                     .spawn_bundle(PbrBundle {
-                        mesh: meshes.add(Mesh::from(shape::Plane { size: 1.0 })),
+                        mesh: plane_handle.clone(),
                         material: materials.add(StandardMaterial {
                             base_color: Color::BLACK,
                             base_color_texture: Some(
@@ -157,21 +158,17 @@ fn generate_map(
             });
     }
 
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
-        transform: Transform::from_xyz(-1.5, 0.5, -1.5),
-        ..default()
-    });
-
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Capsule {
-            radius: 0.25,
-            depth: 0.5,
+    let mesh_handle = meshes.add(Mesh::from(shape::Cube { size: 1.0 }));
+    let material_handle = materials.add(Color::rgb(0.8, 0.7, 0.6).into());
+    for _ in 0..32 {
+        let mut rng = thread_rng();
+        let x = rng.gen::<f32>() * MAP_SIZE as f32 - (MAP_SIZE / 2) as f32;
+        let z = rng.gen::<f32>() * MAP_SIZE as f32 - (MAP_SIZE / 2) as f32;
+        commands.spawn_bundle(PbrBundle {
+            mesh: mesh_handle.clone(),
+            material: material_handle.clone(),
+            transform: Transform::from_xyz(x, 0.5, z),
             ..default()
-        })),
-        material: materials.add(Color::rgb(0.0, 0.7, 0.0).into()),
-        transform: Transform::from_xyz(0., 0.5, 0.),
-        ..default()
-    });
+        }).insert(Collider::cuboid(0.5, 0.5, 0.5));
+    }
 }
