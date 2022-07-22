@@ -1,46 +1,84 @@
-use bevy::{prelude::*, render::render_resource::TextureUsages};
+use bevy::{
+    asset::{AssetLoader, BoxedFuture, LoadContext, LoadedAsset},
+    prelude::*,
+    reflect::TypeUuid,
+    render::render_resource::TextureUsages,
+    utils::HashMap,
+};
 use bevy_rapier3d::prelude::*;
+use serde::{Deserialize, Serialize};
 
 pub struct Sprite3dPlugin;
 
 impl Plugin for Sprite3dPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(set_texture_filters_to_nearest)
-            .add_system_to_stage(CoreStage::Last, animate_sprites)
-            .add_system_to_stage(CoreStage::Last, align_billboards.after(animate_sprites))
+        app
+            .init_asset_loader::<AnimationSetLoader>()
+            .add_asset::<AnimationSet>()
+            .add_system(set_texture_filters_to_nearest)
+            .add_system_to_stage(CoreStage::PostUpdate, check_sequence)
+            .add_system_to_stage(CoreStage::PostUpdate, animate_sprites.after(check_sequence))
+            .add_system_to_stage(CoreStage::Last, align_billboards)
             .add_system_to_stage(CoreStage::Last, project_blob_shadows);
     }
 }
 
-#[derive(Component)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 pub struct Animation {
+    texture: String,
+    offset: (f32, f32),
+    size: (f32, f32),
     length: u8,
     speed: f32,
     rotates: bool,
+}
+
+#[derive(Component)]
+pub struct Animator {
+    animation_handle: Handle<AnimationSet>,
     frame: u8,
     next_frame: f64,
 }
 
-impl Animation {
-    pub fn new(length: u8, speed: f32, rotates: bool) -> Self {
-        Animation {
-            length,
-            speed,
-            rotates,
-            ..default()
+impl Animator {
+    pub fn new(animation_handle: Handle<AnimationSet>) -> Self {
+        Self {
+            animation_handle,
+            frame: 0,
+            next_frame: 0.0,
         }
     }
 }
 
-impl Default for Animation {
-    fn default() -> Self {
-        Self {
-            frame: 0,
-            length: 1,
-            speed: 0.0,
-            rotates: true,
-            next_frame: 0.0,
-        }
+#[derive(Component, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub enum Sequence {
+    Idle,
+    Walk,
+    Jump,
+}
+
+#[derive(Deref, DerefMut, Serialize, Deserialize, TypeUuid)]
+#[uuid = "2b1255e1-6bb8-4295-93ee-6be7ebe405d0"]
+pub struct AnimationSet(HashMap<Sequence, Animation>);
+
+#[derive(Default)]
+pub struct AnimationSetLoader;
+
+impl AssetLoader for AnimationSetLoader {
+    fn load<'a>(
+        &'a self,
+        bytes: &'a [u8],
+        load_context: &'a mut LoadContext,
+    ) -> BoxedFuture<'a, Result<(), anyhow::Error>> {
+        Box::pin(async move {
+            let animation_set = AnimationSet(ron::de::from_bytes(bytes)?);
+            load_context.set_default_asset(LoadedAsset::new(animation_set));
+            Ok(())
+        })
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["anim"]
     }
 }
 
@@ -66,40 +104,103 @@ fn set_texture_filters_to_nearest(
     }
 }
 
+fn check_sequence(
+    animation_sets: Res<Assets<AnimationSet>>,
+    asset_server: Res<AssetServer>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut query: Query<(&mut Animator, &mut Sequence, &Handle<StandardMaterial>), Changed<Sequence>>,
+) {
+    for (mut animator, mut sequence, material_handle) in query.iter_mut() {
+        if let Some(animation_set) = animation_sets.get(&animator.animation_handle) {
+            if !animation_set.contains_key(&sequence) {
+                *sequence = Sequence::Idle;
+            }
+            animator.frame = 0;
+            animator.next_frame = 0.0;
+            if let Some(mut material) = materials.get_mut(material_handle) {
+                let animation = animation_set.get(&sequence).unwrap();
+                material.base_color_texture = Some(asset_server.load(animation.texture.as_str()));
+            }
+        }
+    }
+}
+
+fn get_animation<'a>(
+    animation_sets: &'a Res<Assets<AnimationSet>>,
+    animation_handle: &Handle<AnimationSet>,
+    sequence: &Sequence,
+) -> Option<&'a Animation> {
+    animation_sets.get(animation_handle)?.get(sequence)
+}
+
+fn get_texture<'a>(
+    materials: &'a Res<Assets<StandardMaterial>>,
+    material_handle: &Handle<StandardMaterial>,
+    textures: &'a Res<Assets<Image>>,
+) -> Option<&'a Image> {
+    let texture_handle = materials
+        .get(material_handle)?
+        .base_color_texture
+        .as_ref()?;
+    textures.get(texture_handle)
+}
+
 fn animate_sprites(
     time: Res<Time>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut query: Query<(&Handle<Mesh>, &mut Animation, &GlobalTransform)>,
+    animation_sets: Res<Assets<AnimationSet>>,
+    materials: Res<Assets<StandardMaterial>>,
+    textures: Res<Assets<Image>>,
+    mut query: Query<(
+        &Handle<Mesh>,
+        &Handle<StandardMaterial>,
+        &mut Animator,
+        &Sequence,
+        &GlobalTransform,
+    )>,
 ) {
-    for (mesh_handle, mut animation, transform) in query.iter_mut() {
-        if animation.speed > 0.0 && time.seconds_since_startup() > animation.next_frame {
-            animation.frame = (animation.frame + 1) % animation.length;
-            if animation.next_frame == 0.0 {
-                animation.next_frame = time.seconds_since_startup();
+    for (mesh_handle, material_handle, mut animator, sequence, transform) in query.iter_mut() {
+        if let Some(animation) =
+            get_animation(&animation_sets, &animator.animation_handle, &sequence)
+        {
+            if animation.speed > 0.0 && time.seconds_since_startup() > animator.next_frame {
+                if animator.next_frame == 0.0 {
+                    animator.next_frame = time.seconds_since_startup();
+                } else {
+                    animator.frame = (animator.frame + 1) % animation.length;
+                }
+                animator.next_frame += animation.speed as f64
             }
-            animation.next_frame += animation.speed as f64
-        }
 
-        let mut frame = animation.frame;
-        if animation.rotates {
-            let (direction, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
-            let direction =
-                ((-direction + 3.0 * std::f32::consts::FRAC_PI_8 + std::f32::consts::TAU)
-                    / std::f32::consts::FRAC_PI_4) as u8
-                    % 8;
-            frame = frame + direction * animation.length;
-        }
+            let mut frame = animator.frame;
+            if animation.rotates {
+                let (direction, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
+                let direction =
+                    ((-direction + 3.0 * std::f32::consts::FRAC_PI_8 + std::f32::consts::TAU)
+                        / std::f32::consts::FRAC_PI_4) as u8
+                        % 8;
+                frame = frame + direction * animation.length;
+            }
 
-        let offset_x = (frame % animation.length) as f32 * 0.125;
-        let offset_y = (frame / animation.length) as f32 * 0.125;
+            if let Some(texture) = get_texture(&materials, &material_handle, &textures) {
+                let texture_size = texture.size();
+                let size_x = animation.size.0 / texture_size.x;
+                let size_y = animation.size.1 / texture_size.y;
+                let offset_x = (frame % animation.length) as f32 * size_x;
+                let offset_y = (frame / animation.length) as f32 * size_y;
+                // info!("frame: {}, size_x: {}, size_y: {}", frame, size_x, size_y);
 
-        if let Some(mesh) = meshes.get_mut(mesh_handle) {
-            let mut uvs = Vec::new();
-            uvs.push([0.0 + offset_x, 0.125 + offset_y]);
-            uvs.push([0.0 + offset_x, 0.0 + offset_y]);
-            uvs.push([0.125 + offset_x, 0.0 + offset_y]);
-            uvs.push([0.125 + offset_x, 0.125 + offset_y]);
-            mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+                if let Some(mesh) = meshes.get_mut(mesh_handle) {
+                    let mut uvs = Vec::new();
+                    uvs.push([0.0 + offset_x, size_y + offset_y]);
+                    uvs.push([0.0 + offset_x, 0.0 + offset_y]);
+                    uvs.push([size_x + offset_x, 0.0 + offset_y]);
+                    uvs.push([size_x + offset_x, size_y + offset_y]);
+                    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+                }
+            } else {
+                info!("Texture not loaded");
+            }
         }
     }
 }

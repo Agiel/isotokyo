@@ -15,9 +15,11 @@ impl Plugin for PlayerPlugin {
             .add_system(player_input.after(update_crosshair))
             .add_system(camera_follow_player.after(update_crosshair))
             .add_system(look_at_crosshair.after(update_crosshair))
-            .add_system(player_move.after(look_at_crosshair));
+            .add_system(player_move.after(look_at_crosshair))
+            .add_system(update_sequence.after(player_move));
     }
 }
+struct PlayerPreload(Vec<Handle<Image>>);
 
 fn setup_player(
     mut commands: Commands,
@@ -25,10 +27,15 @@ fn setup_player(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    commands.insert_resource(PlayerPreload(vec![
+        asset_server.load("textures/player/jinrai_idle.png"),
+        asset_server.load("textures/player/jinrai_walk.png"),
+        asset_server.load("textures/player/nsf_idle.png"),
+        asset_server.load("textures/player/nsf_walk.png"),
+    ]));
+
     // Player
-    let texture_handle = asset_server.load("textures/player/jinrai_walk.png");
     let material_handle = materials.add(StandardMaterial {
-        base_color_texture: Some(texture_handle.clone()),
         alpha_mode: AlphaMode::Blend,
         reflectance: 0.0,
         metallic: 0.0,
@@ -64,7 +71,8 @@ fn setup_player(
                     ..default()
                 })
                 .insert(Billboard)
-                .insert(Animation::new(8, 0.1, true));
+                .insert(Animator::new(asset_server.load("animations/nsf.anim")))
+                .insert(Sequence::Idle);
             // Light
             parent.spawn_bundle(PointLightBundle {
                 point_light: PointLight {
@@ -184,7 +192,7 @@ fn player_move(
     mut query: Query<(&mut Player, &mut Velocity, &Transform)>,
 ) {
     for (mut player, mut velocity, transform) in query.iter_mut() {
-        player.is_grounded = check_grounded(&velocity, &transform, &physics_context);
+        player.is_grounded = check_grounded(&transform, &physics_context);
 
         if player.is_grounded && player_input.jump {
             player_input.jump = false;
@@ -215,15 +223,7 @@ fn player_move(
     }
 }
 
-fn check_grounded(
-    velocity: &Velocity,
-    transform: &Transform,
-    physics_context: &RapierContext,
-) -> bool {
-    if velocity.linvel.y > f32::EPSILON {
-        return false;
-    }
-
+fn check_grounded(transform: &Transform, physics_context: &RapierContext) -> bool {
     if let Some((_entity, _toi)) = physics_context.cast_ray(
         transform.translation,
         -Vec3::Y,
@@ -283,6 +283,26 @@ fn accelerate(
     let accel_speed = add_speed.min(accel * wish_speed * delta_time);
 
     velocity.linvel += wish_dir * accel_speed;
+}
+
+fn update_sequence(
+    mut query: Query<(&mut Sequence, &Parent), Without<Player>>,
+    p_query: Query<(&Player, &Velocity)>,
+) {
+    for (mut sequence, parent) in query.iter_mut() {
+        if let Ok((player, velocity)) = p_query.get(parent.0) {
+            let new_sequence = if !player.is_grounded {
+                Sequence::Jump
+            } else if velocity.linvel.length() > f32::EPSILON {
+                Sequence::Walk
+            } else {
+                Sequence::Idle
+            };
+            if *sequence != new_sequence {
+                *sequence = new_sequence;
+            }
+        }
+    }
 }
 
 fn camera_follow_player(

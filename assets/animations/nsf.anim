@@ -1,26 +1,26 @@
 {
     Idle: (
-        texture: "nsf_idle",
+        texture: "textures/player/nsf_idle.png",
         offset: (0, 0),
         size: (64, 64),
         length: 1,
         speed: 0,
-        directions: Column,
+        rotates: true,
     ),
     Walk: (
-        texture: "nsf_walk",
+        texture: "textures/player/nsf_walk.png",
         offset: (0, 0),
         size: (64, 64),
         length: 8,
         speed: 0.1,
-        directions: Column,
+        rotates: true,
     ),
     Jump: (
-        texture: "nsf_walk",
+        texture: "textures/player/nsf_walk.png",
         offset: (0, 0),
         size: (64, 64),
         length: 1,
         speed: 0,
-        directions: Column,
+        rotates: true,
     )
 }
