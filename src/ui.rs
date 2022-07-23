@@ -10,6 +10,9 @@ struct FpsCounter;
 #[derive(Component)]
 struct Speedometer;
 
+#[derive(Component, Default, Deref, DerefMut)]
+struct MaxSpeed(f32);
+
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
@@ -17,7 +20,8 @@ impl Plugin for UiPlugin {
         app.add_plugin(FrameTimeDiagnosticsPlugin::default())
             .add_startup_system(setup_ui)
             .add_system(update_fps)
-            .add_system(update_speed);
+            .add_system(update_speed)
+            .add_system(max_speed);
     }
 }
 
@@ -50,7 +54,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                     TextSection {
                         value: "".to_string(),
                         style: style.clone(),
-                    }
+                    },
                 ],
                 ..default()
             },
@@ -77,13 +81,40 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                     TextSection {
                         value: "".to_string(),
                         style: style.clone(),
-                    }
+                    },
                 ],
                 ..default()
             },
             ..default()
         })
         .insert(Speedometer);
+    commands
+        .spawn_bundle(TextBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                position: Rect {
+                    top: Val::Px(40.0),
+                    left: Val::Px(12.0),
+                    ..default()
+                },
+                ..default()
+            },
+            text: Text {
+                sections: vec![
+                    TextSection {
+                        value: "Max: ".to_string(),
+                        style: style.clone(),
+                    },
+                    TextSection {
+                        value: "".to_string(),
+                        style: style.clone(),
+                    },
+                ],
+                ..default()
+            },
+            ..default()
+        })
+        .insert(MaxSpeed::default());
 }
 
 fn update_fps(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<FpsCounter>>) {
@@ -97,13 +128,33 @@ fn update_fps(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<Fp
     }
 }
 
-fn update_speed(player_query: Query<&Velocity, With<Player>>, mut query: Query<&mut Text, With<Speedometer>>) {
+fn update_speed(
+    player_query: Query<&Velocity, With<Player>>,
+    mut query: Query<&mut Text, With<Speedometer>>,
+) {
     for mut text in query.iter_mut() {
         if let Ok(velocity) = player_query.get_single() {
             let mut velocity = velocity.clone();
             velocity.linvel.y = 0.0;
             // Update the value of the second section
             text.sections[1].value = format!("{:.2}", velocity.linvel.length());
+        }
+    }
+}
+
+fn max_speed(
+    player_query: Query<&Velocity, With<Player>>,
+    mut query: Query<(&mut Text, &mut MaxSpeed), With<MaxSpeed>>,
+) {
+    for (mut text, mut max_speed) in query.iter_mut() {
+        if let Ok(velocity) = player_query.get_single() {
+            let mut velocity = velocity.clone();
+            velocity.linvel.y = 0.0;
+            if velocity.linvel.length() > **max_speed {
+                **max_speed = velocity.linvel.length();
+                // Update the value of the second section
+                text.sections[1].value = format!("{:.2}", **max_speed);
+            }
         }
     }
 }
