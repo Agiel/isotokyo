@@ -210,7 +210,7 @@ fn player_move(
         );
 
         let wish_dir =
-            transform.forward() * player_input.forward + transform.right() * player_input.right;
+            (transform.forward() * player_input.forward + transform.right() * player_input.right).normalize_or_zero();
         let wish_speed = config.physics.ground_speed;
 
         accelerate(
