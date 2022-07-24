@@ -5,7 +5,7 @@ mod sprites;
 mod ui;
 mod utils;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, window::PresentMode};
 use bevy_rapier3d::prelude::*;
 use config::ConfigPlugin;
 use input::InputPlugin;
@@ -22,6 +22,7 @@ fn main() {
             title: "Isotokyo".into(),
             width: 1280.,
             height: 720.,
+            present_mode: PresentMode::Fifo,
             ..default()
         })
         .insert_resource(ClearColor(Color::rgb(0.125, 0.125, 0.125)))
