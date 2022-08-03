@@ -1,7 +1,8 @@
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// A 3D ray, with an origin and direction. The direction is guaranteed to be normalized.
-#[derive(Debug, PartialEq, Copy, Clone, Default)]
+#[derive(Debug, PartialEq, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct Ray3d {
     pub(crate) origin: Vec3,
     pub(crate) direction: Vec3,

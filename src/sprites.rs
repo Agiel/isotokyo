@@ -14,12 +14,12 @@ pub struct Sprite3dPlugin;
 
 impl Plugin for Sprite3dPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .init_asset_loader::<AnimationSetLoader>()
+        app.init_asset_loader::<AnimationSetLoader>()
             .add_asset::<AnimationSet>()
             .add_system(set_texture_filters_to_nearest)
             .add_system_to_stage(CoreStage::PostUpdate, check_sequence)
-            .add_system_to_stage(CoreStage::PostUpdate, animate_sprites.after(check_sequence))
+            .add_system_to_stage(CoreStage::PostUpdate, rotate_sprites.after(check_sequence))
+            .add_system_to_stage(CoreStage::PostUpdate, animate_sprites.after(rotate_sprites))
             .add_system_to_stage(CoreStage::Last, align_billboards)
             .add_system_to_stage(CoreStage::Last, project_blob_shadows);
     }
@@ -39,6 +39,7 @@ pub struct Animation {
 pub struct Animator {
     animation_handle: Handle<AnimationSet>,
     frame: u8,
+    direction: u8,
     next_frame: f64,
 }
 
@@ -47,6 +48,7 @@ impl Animator {
         Self {
             animation_handle,
             frame: 0,
+            direction: 0,
             next_frame: 0.0,
         }
     }
@@ -54,6 +56,7 @@ impl Animator {
 
 #[derive(Component, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Sequence {
+    None,
     Idle,
     Walk,
     Jump,
@@ -147,6 +150,28 @@ fn get_texture<'a>(
     textures.get(texture_handle)
 }
 
+fn rotate_sprites(
+    animation_sets: Res<Assets<AnimationSet>>,
+    mut query: Query<(&mut Animator, &Sequence, &Parent)>,
+    p_query: Query<&Transform, Changed<Transform>>,
+) {
+    for (mut animator, sequence, parent) in query.iter_mut() {
+        if let (Some(animation), Ok(transform)) = (
+            get_animation(&animation_sets, &animator.animation_handle, &sequence),
+            p_query.get(parent.0),
+        ) {
+            animator.direction = if animation.rotates {
+                let (direction, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
+                ((-direction + 3.0 * std::f32::consts::FRAC_PI_8 + std::f32::consts::TAU)
+                    / std::f32::consts::FRAC_PI_4) as u8
+                    % 8
+            } else {
+                0
+            }
+        }
+    }
+}
+
 fn animate_sprites(
     time: Res<Time>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -158,10 +183,9 @@ fn animate_sprites(
         &Handle<StandardMaterial>,
         &mut Animator,
         &Sequence,
-        &GlobalTransform,
     )>,
 ) {
-    for (mesh_handle, material_handle, mut animator, sequence, transform) in query.iter_mut() {
+    for (mesh_handle, material_handle, mut animator, sequence) in query.iter_mut() {
         if let Some(animation) =
             get_animation(&animation_sets, &animator.animation_handle, &sequence)
         {
@@ -174,15 +198,7 @@ fn animate_sprites(
                 animator.next_frame += animation.speed as f64
             }
 
-            let mut frame = animator.frame;
-            if animation.rotates {
-                let (direction, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
-                let direction =
-                    ((-direction + 3.0 * std::f32::consts::FRAC_PI_8 + std::f32::consts::TAU)
-                        / std::f32::consts::FRAC_PI_4) as u8
-                        % 8;
-                frame = frame + direction * animation.length;
-            }
+            let frame = animator.frame + animator.direction * animation.length;
 
             if let Some(texture) = get_texture(&materials, &material_handle, &textures) {
                 let texture_size = texture.size();
