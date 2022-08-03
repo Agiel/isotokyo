@@ -1,49 +1,22 @@
-mod config;
-mod input;
-mod player;
-mod sprites;
-mod ui;
-mod utils;
+pub mod config;
+pub mod input;
+pub mod player;
+pub mod networking;
+pub mod sprites;
+pub mod ui;
+pub mod utils;
 
-use bevy::{prelude::*, window::PresentMode};
+use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
-use config::ConfigPlugin;
-use input::InputPlugin;
-use player::*;
-use rand::{thread_rng, Rng};
+use rand::{Rng, SeedableRng};
 use sprites::*;
-use ui::UiPlugin;
 
 const MAP_SIZE: i32 = 64;
 
-fn main() {
-    App::new()
-        .insert_resource(WindowDescriptor {
-            title: "Isotokyo".into(),
-            width: 1280.,
-            height: 720.,
-            present_mode: PresentMode::Fifo,
-            ..default()
-        })
-        .insert_resource(ClearColor(Color::rgb(0.125, 0.125, 0.125)))
-        .add_plugins(DefaultPlugins)
-        .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
-        // .add_plugin(RapierDebugRenderPlugin::default())
-        .add_plugin(ConfigPlugin)
-        .add_plugin(InputPlugin)
-        .add_plugin(Sprite3dPlugin)
-        .add_plugin(PlayerPlugin)
-        .add_plugin(UiPlugin)
-        .add_startup_system(setup)
-        .add_startup_system(generate_map)
-        .add_system(bevy::input::system::exit_on_esc_system)
-        .run();
-}
-
 #[derive(Component)]
-struct MainCamera;
+pub struct MainCamera;
 
-fn setup(mut commands: Commands) {
+pub fn setup_camera(mut commands: Commands) {
     // Set up the camera
     let mut camera = OrthographicCameraBundle::new_3d();
     camera.orthographic_projection.scale = 720.0 / 2.0 / 64.0;
@@ -51,7 +24,7 @@ fn setup(mut commands: Commands) {
     commands.spawn_bundle(camera).insert(MainCamera);
 }
 
-fn generate_map(
+pub fn generate_map(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -108,6 +81,8 @@ fn generate_map(
     });
 
     // Props
+    let mut rng = rand::rngs::StdRng::seed_from_u64(1234567890);
+
     let texture_handle = asset_server.load("textures/props/sakura1.png");
     let material_handle = materials.add(StandardMaterial {
         base_color_texture: Some(texture_handle.clone()),
@@ -123,7 +98,6 @@ fn generate_map(
     }));
     let plane_handle = meshes.add(Mesh::from(shape::Plane { size: 1.0 }));
     for _ in 0..128 {
-        let mut rng = thread_rng();
         let x = rng.gen::<f32>() * MAP_SIZE as f32 - (MAP_SIZE / 2) as f32;
         let z = rng.gen::<f32>() * MAP_SIZE as f32 - (MAP_SIZE / 2) as f32;
         // Tree
@@ -162,7 +136,6 @@ fn generate_map(
     let mesh_handle = meshes.add(Mesh::from(shape::Cube { size: 1.0 }));
     let material_handle = materials.add(Color::rgb(0.8, 0.7, 0.6).into());
     for _ in 0..32 {
-        let mut rng = thread_rng();
         let x = rng.gen::<f32>() * MAP_SIZE as f32 - (MAP_SIZE / 2) as f32;
         let z = rng.gen::<f32>() * MAP_SIZE as f32 - (MAP_SIZE / 2) as f32;
         commands.spawn_bundle(PbrBundle {

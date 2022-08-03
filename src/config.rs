@@ -17,8 +17,8 @@ impl Plugin for ConfigPlugin {
 fn read_config(mut commands: Commands, mut physics_config: ResMut<RapierConfiguration>) {
     let config = Config::new();
     physics_config.gravity = -Vec3::Y * config.physics.gravity;
-    physics_config.timestep_mode = TimestepMode::Variable {
-        max_dt: 1.0 / 30.0,
+    physics_config.timestep_mode = TimestepMode::Interpolated {
+        dt: 1.0 / 60.0,
         substeps: 1,
         time_scale: 1.0,
     };

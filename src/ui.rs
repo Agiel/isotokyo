@@ -2,7 +2,7 @@ use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::Velocity;
 
-use crate::player::Player;
+use crate::player::LocalPlayer;
 
 #[derive(Component)]
 struct FpsCounter;
@@ -10,7 +10,7 @@ struct FpsCounter;
 #[derive(Component)]
 struct Speedometer;
 
-#[derive(Component, Default, Deref, DerefMut)]
+#[derive(Component, Default)]
 struct MaxSpeed(f32);
 
 pub struct UiPlugin;
@@ -129,7 +129,7 @@ fn update_fps(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<Fp
 }
 
 fn update_speed(
-    player_query: Query<&Velocity, With<Player>>,
+    player_query: Query<&Velocity, With<LocalPlayer>>,
     mut query: Query<&mut Text, With<Speedometer>>,
 ) {
     for mut text in query.iter_mut() {
@@ -143,17 +143,17 @@ fn update_speed(
 }
 
 fn max_speed(
-    player_query: Query<&Velocity, With<Player>>,
+    player_query: Query<&Velocity, With<LocalPlayer>>,
     mut query: Query<(&mut Text, &mut MaxSpeed), With<MaxSpeed>>,
 ) {
     for (mut text, mut max_speed) in query.iter_mut() {
         if let Ok(velocity) = player_query.get_single() {
             let mut velocity = velocity.clone();
             velocity.linvel.y = 0.0;
-            if velocity.linvel.length() > **max_speed {
-                **max_speed = velocity.linvel.length();
+            if velocity.linvel.length() > max_speed.0 {
+                max_speed.0 = velocity.linvel.length();
                 // Update the value of the second section
-                text.sections[1].value = format!("{:.2}", **max_speed);
+                text.sections[1].value = format!("{:.2}", max_speed.0);
             }
         }
     }
