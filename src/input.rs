@@ -1,5 +1,5 @@
 use bevy::{
-    input::{keyboard::KeyboardInput, ElementState},
+    input::{keyboard::KeyboardInput, ButtonState},
     prelude::*,
 };
 use serde::{Deserialize, Serialize};
@@ -39,10 +39,10 @@ fn keyboard_input_system(
         {
             let actions = config.key_bindings.get(key_code);
             match (state, actions) {
-                (ElementState::Pressed, Some(actions)) => {
+                (ButtonState::Pressed, Some(actions)) => {
                     actions.iter().for_each(|action| input.press(*action))
                 }
-                (ElementState::Released, Some(actions)) => {
+                (ButtonState::Released, Some(actions)) => {
                     actions.iter().for_each(|action| input.release(*action))
                 }
                 _ => (),

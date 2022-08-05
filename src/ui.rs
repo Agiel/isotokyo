@@ -26,8 +26,6 @@ impl Plugin for UiPlugin {
 }
 
 fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn_bundle(UiCameraBundle::default());
-
     let style = TextStyle {
         font: asset_server.load("fonts/X-SCALE_.TTF"),
         font_size: 24.0,
@@ -35,85 +33,55 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
     };
 
     commands
-        .spawn_bundle(TextBundle {
-            style: Style {
+        .spawn_bundle(
+            TextBundle::from_sections([
+                TextSection::new("FPS: ", style.clone()),
+                TextSection::new("", style.clone()),
+            ])
+            .with_style(Style {
                 position_type: PositionType::Absolute,
-                position: Rect {
+                position: UiRect {
                     top: Val::Px(0.0),
                     left: Val::Px(12.0),
                     ..default()
                 },
                 ..default()
-            },
-            text: Text {
-                sections: vec![
-                    TextSection {
-                        value: "FPS: ".to_string(),
-                        style: style.clone(),
-                    },
-                    TextSection {
-                        value: "".to_string(),
-                        style: style.clone(),
-                    },
-                ],
-                ..default()
-            },
-            ..default()
-        })
+            }),
+        )
         .insert(FpsCounter);
     commands
-        .spawn_bundle(TextBundle {
-            style: Style {
+        .spawn_bundle(
+            TextBundle::from_sections([
+                TextSection::new("Speed: ", style.clone()),
+                TextSection::new("", style.clone()),
+            ])
+            .with_style(Style {
                 position_type: PositionType::Absolute,
-                position: Rect {
+                position: UiRect {
                     top: Val::Px(20.0),
                     left: Val::Px(12.0),
                     ..default()
                 },
                 ..default()
-            },
-            text: Text {
-                sections: vec![
-                    TextSection {
-                        value: "Speed: ".to_string(),
-                        style: style.clone(),
-                    },
-                    TextSection {
-                        value: "".to_string(),
-                        style: style.clone(),
-                    },
-                ],
-                ..default()
-            },
-            ..default()
-        })
+            }),
+        )
         .insert(Speedometer);
     commands
-        .spawn_bundle(TextBundle {
-            style: Style {
+        .spawn_bundle(
+            TextBundle::from_sections([
+                TextSection::new("Max: ", style.clone()),
+                TextSection::new("", style.clone()),
+            ])
+            .with_style(Style {
                 position_type: PositionType::Absolute,
-                position: Rect {
+                position: UiRect {
                     top: Val::Px(40.0),
                     left: Val::Px(12.0),
                     ..default()
                 },
                 ..default()
-            },
-            text: Text {
-                sections: vec![
-                    TextSection {
-                        value: "Max: ".to_string(),
-                        style: style.clone(),
-                    },
-                    TextSection {
-                        value: "".to_string(),
-                        style: style.clone(),
-                    },
-                ],
-                ..default()
-            },
-            ..default()
-        })
+            }),
+        )
         .insert(MaxSpeed::default());
 }
 

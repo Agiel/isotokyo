@@ -6,7 +6,7 @@ pub mod sprites;
 pub mod ui;
 pub mod utils;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, render::camera::ScalingMode};
 use bevy_rapier3d::prelude::*;
 use rand::{Rng, SeedableRng};
 use sprites::*;
@@ -18,8 +18,14 @@ pub struct MainCamera;
 
 pub fn setup_camera(mut commands: Commands) {
     // Set up the camera
-    let mut camera = OrthographicCameraBundle::new_3d();
-    camera.orthographic_projection.scale = 720.0 / 2.0 / 64.0;
+    let mut camera = Camera3dBundle {
+        projection: OrthographicProjection {
+            scaling_mode: ScalingMode::WindowSize,
+            scale: 1.0 / 64.0,
+            ..default()
+        }.into(),
+        ..default()
+    };
     camera.transform = Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y);
     commands.spawn_bundle(camera).insert(MainCamera);
 }
@@ -102,8 +108,8 @@ pub fn generate_map(
         let z = rng.gen::<f32>() * MAP_SIZE as f32 - (MAP_SIZE / 2) as f32;
         // Tree
         commands
-            .spawn_bundle(TransformBundle {
-                local: Transform::from_xyz(x, 1.0, z),
+            .spawn_bundle(SpatialBundle {
+                transform: Transform::from_xyz(x, 1.0, z),
                 ..default()
             })
             .with_children(|parent| {

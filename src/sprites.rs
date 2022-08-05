@@ -2,7 +2,6 @@ use bevy::{
     asset::{AssetLoader, BoxedFuture, LoadContext, LoadedAsset},
     prelude::*,
     reflect::TypeUuid,
-    render::render_resource::TextureUsages,
     utils::HashMap,
 };
 use bevy_rapier3d::prelude::*;
@@ -16,7 +15,6 @@ impl Plugin for Sprite3dPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset_loader::<AnimationSetLoader>()
             .add_asset::<AnimationSet>()
-            .add_system(set_texture_filters_to_nearest)
             .add_system_to_stage(CoreStage::PostUpdate, check_sequence)
             .add_system_to_stage(CoreStage::PostUpdate, rotate_sprites.after(check_sequence))
             .add_system_to_stage(CoreStage::PostUpdate, animate_sprites.after(rotate_sprites))
@@ -90,25 +88,6 @@ impl AssetLoader for AnimationSetLoader {
 #[derive(Component)]
 pub struct Billboard;
 
-fn set_texture_filters_to_nearest(
-    mut texture_events: EventReader<AssetEvent<Image>>,
-    mut textures: ResMut<Assets<Image>>,
-) {
-    // quick and dirty, run this for all textures anytime a texture is created.
-    for event in texture_events.iter() {
-        match event {
-            AssetEvent::Created { handle } => {
-                if let Some(mut texture) = textures.get_mut(handle) {
-                    texture.texture_descriptor.usage = TextureUsages::TEXTURE_BINDING
-                        | TextureUsages::COPY_SRC
-                        | TextureUsages::COPY_DST;
-                }
-            }
-            _ => (),
-        }
-    }
-}
-
 fn check_sequence(
     animation_sets: Res<Assets<AnimationSet>>,
     asset_server: Res<AssetServer>,
@@ -158,7 +137,7 @@ fn rotate_sprites(
     for (mut animator, sequence, parent) in query.iter_mut() {
         if let (Some(animation), Ok(transform)) = (
             get_animation(&animation_sets, &animator.animation_handle, &sequence),
-            p_query.get(parent.0),
+            p_query.get(parent.get()),
         ) {
             animator.direction = if animation.rotates {
                 let (direction, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
@@ -229,8 +208,11 @@ fn align_billboards(
 ) {
     let cam_transform = cam_query.single();
     for mut transform in query.iter_mut() {
-        let translation = transform.translation;
-        transform.look_at(translation + cam_transform.forward(), Vec3::Y);
+        let translation = transform.translation();
+        *transform = GlobalTransform::from(
+            Transform::from_translation(translation)
+                .looking_at(translation + cam_transform.forward(), Vec3::Y),
+        );
     }
 }
 
@@ -247,15 +229,17 @@ fn project_blob_shadows(
             continue;
         }
         if let Some((_entity, toi)) = physics_context.cast_ray(
-            transform.translation,
+            transform.translation(),
             -Vec3::Y,
             1.0,
             true,
             QueryFilter::new().groups(InteractionGroups::new(0b0001, 0b0001)),
         ) {
-            transform.translation.y -= toi;
+            let mut translation = transform.translation();
+            translation.y -= toi;
             // Offset towards camera to avoid clipping through ground
-            transform.translation += Vec3::ONE * 0.01;
+            translation += Vec3::ONE * 0.01;
+            *transform = GlobalTransform::from(Transform::from_translation(translation));
             if let Some(material) = materials.get_mut(material_handle) {
                 material.base_color = Color::rgba(0.0, 0.0, 0.0, 1.0 - toi);
             }
