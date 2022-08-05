@@ -1,11 +1,11 @@
 use std::{net::UdpSocket, time::SystemTime};
 
-use bevy::{prelude::*, window::PresentMode};
+use bevy::{prelude::*, window::PresentMode, render::texture::ImageSettings};
 use bevy_egui::{EguiContext, EguiPlugin};
 use bevy_rapier3d::prelude::*;
 use bevy_renet::{
     renet::{ClientAuthentication, RenetClient, RenetError},
-    run_if_client_conected, RenetClientPlugin,
+    RenetClientPlugin, run_if_client_connected,
 };
 use isotokyo::{
     networking::{
@@ -53,6 +53,7 @@ fn main() {
             ..default()
         })
         .insert_resource(ClearColor(Color::rgb(0.125, 0.125, 0.125)))
+        .insert_resource(ImageSettings::default_nearest())
         .add_plugins(DefaultPlugins)
         .add_plugin(RenetClientPlugin)
         .add_plugin(EguiPlugin)
@@ -62,7 +63,7 @@ fn main() {
         .add_plugin(player::ClientPlayerPlugin)
         .add_plugin(ui::UiPlugin)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
-        .add_plugin(RapierDebugRenderPlugin::default())
+        // .add_plugin(RapierDebugRenderPlugin::default())
         .add_event::<PlayerCommand>()
         .insert_resource(ClientLobby::default())
         .insert_resource(new_renet_client())
@@ -71,19 +72,19 @@ fn main() {
         ))
         .insert_resource(NetworkMapping::default())
         .insert_resource(MostRecentTick::default())
-        .add_system(client_sync_players.with_run_criteria(run_if_client_conected))
+        .add_system(client_sync_players.with_run_criteria(run_if_client_connected))
         .add_system(client_spawn_players.after(client_sync_players))
         .add_system(player::player_input.after(client_sync_players))
         .add_system(player::update_crosshair.after(player::player_input))
         .add_system(player::camera_follow_player.after(player::update_crosshair))
         .add_system(player::update_sequence.after(client_sync_players))
-        .add_system(client_send_input.with_run_criteria(run_if_client_conected).after(player::player_input))
-        .add_system(client_send_player_commands.with_run_criteria(run_if_client_conected))
+        .add_system(client_send_input.with_run_criteria(run_if_client_connected).after(player::player_input))
+        .add_system(client_send_player_commands.with_run_criteria(run_if_client_connected))
         .add_system(update_visulizer_system)
         .add_startup_system(setup_camera)
         .add_startup_system(generate_map)
         .add_system(panic_on_error_system)
-        .add_system(bevy::input::system::exit_on_esc_system)
+        .add_system(bevy::window::close_on_esc)
         .run();
 }
 

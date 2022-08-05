@@ -94,8 +94,8 @@ pub fn client_spawn_players(
             ..default()
         }));
 
-        let mut player = commands.spawn_bundle(TransformBundle {
-            local: Transform::from_translation(spawn.position),
+        let mut player = commands.spawn_bundle(SpatialBundle {
+            transform: Transform::from_translation(spawn.position),
             ..default()
         });
         player
@@ -180,11 +180,10 @@ pub struct PlayerInput {
 pub fn player_input(
     input: Res<Input<InputAction>>,
     windows: Res<Windows>,
-    images: Res<Assets<Image>>,
     mut player_query: Query<&mut PlayerInput>,
     most_recent_tick: Res<MostRecentTick>,
     _mouse_button_input: Res<Input<MouseButton>>,
-    cam_query: Query<(&Camera, &Transform), With<MainCamera>>,
+    cam_query: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
 ) {
     if let Ok(mut player_input) = player_query.get_single_mut() {
         player_input.most_recent_tick = most_recent_tick.0;
@@ -207,7 +206,7 @@ pub fn player_input(
             && !input.just_released(InputAction::Jump);
 
         let (camera, camera_transform) = cam_query.single();
-        if let Some(ray) = Ray3d::from_screenspace(&windows, &images, &camera, &camera_transform) {
+        if let Some(ray) = Ray3d::from_screenspace(&windows, &camera, &camera_transform) {
             player_input.aim_ray = ray;
         }
     }
@@ -346,7 +345,7 @@ pub fn update_sequence(
     p_query: Query<(&IsGrounded, &Velocity), With<Player>>,
 ) {
     for (mut sequence, parent) in query.iter_mut() {
-        if let Ok((is_grounded, velocity)) = p_query.get(parent.0) {
+        if let Ok((is_grounded, velocity)) = p_query.get(parent.get()) {
             let new_sequence = if !is_grounded.0 {
                 Sequence::Jump
             } else if velocity.linvel.length() > f32::EPSILON {

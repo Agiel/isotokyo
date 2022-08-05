@@ -1,6 +1,6 @@
 use std::{net::UdpSocket, time::SystemTime};
 
-use bevy::{prelude::*, utils::HashMap, window::PresentMode};
+use bevy::{prelude::*, utils::HashMap, window::PresentMode, render::texture::ImageSettings};
 use bevy_egui::{EguiContext, EguiPlugin};
 use bevy_rapier3d::prelude::*;
 use bevy_renet::{
@@ -51,6 +51,7 @@ fn main() {
             ..default()
         })
         .insert_resource(ClearColor(Color::rgb(0.125, 0.125, 0.125)))
+        .insert_resource(ImageSettings::default_nearest())
         .add_plugins(DefaultPlugins)
         .add_plugin(RenetServerPlugin)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
@@ -68,7 +69,7 @@ fn main() {
         .add_system(server_network_sync.after(player::player_move))
         .add_system(update_visulizer_system)
         .add_startup_system(generate_map)
-        // .add_startup_system(setup_simple_camera)
+        .add_startup_system(setup_simple_camera)
         .run();
 }
 
@@ -219,7 +220,7 @@ fn server_network_sync(
 
 pub fn setup_simple_camera(mut commands: Commands) {
     // camera
-    commands.spawn_bundle(PerspectiveCameraBundle {
+    commands.spawn_bundle(Camera3dBundle {
         transform: Transform::from_xyz(10.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..Default::default()
     });
