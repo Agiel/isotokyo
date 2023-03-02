@@ -136,7 +136,7 @@ fn rotate_sprites(
 ) {
     for (mut animator, sequence, parent) in query.iter_mut() {
         if let (Some(animation), Ok(transform)) = (
-            get_animation(&animation_sets, &animator.animation_handle, &sequence),
+            get_animation(&animation_sets, &animator.animation_handle, sequence),
             p_query.get(parent.get()),
         ) {
             animator.direction = if animation.rotates {
@@ -166,11 +166,11 @@ fn animate_sprites(
 ) {
     for (mesh_handle, material_handle, mut animator, sequence) in query.iter_mut() {
         if let Some(animation) =
-            get_animation(&animation_sets, &animator.animation_handle, &sequence)
+            get_animation(&animation_sets, &animator.animation_handle, sequence)
         {
-            if animation.speed > 0.0 && time.seconds_since_startup() > animator.next_frame {
+            if animation.speed > 0.0 && time.elapsed_seconds_f64() > animator.next_frame {
                 if animator.next_frame == 0.0 {
-                    animator.next_frame = time.seconds_since_startup();
+                    animator.next_frame = time.elapsed_seconds_f64();
                 } else {
                     animator.frame = (animator.frame + 1) % animation.length;
                 }
@@ -179,7 +179,7 @@ fn animate_sprites(
 
             let frame = animator.frame + animator.direction * animation.length;
 
-            if let Some(texture) = get_texture(&materials, &material_handle, &textures) {
+            if let Some(texture) = get_texture(&materials, material_handle, &textures) {
                 let texture_size = texture.size();
                 let size_x = animation.size.0 / texture_size.x;
                 let size_y = animation.size.1 / texture_size.y;
@@ -188,11 +188,12 @@ fn animate_sprites(
                 // info!("frame: {}, size_x: {}, size_y: {}", frame, size_x, size_y);
 
                 if let Some(mesh) = meshes.get_mut(mesh_handle) {
-                    let mut uvs = Vec::new();
-                    uvs.push([0.0 + offset_x, size_y + offset_y]);
-                    uvs.push([0.0 + offset_x, 0.0 + offset_y]);
-                    uvs.push([size_x + offset_x, 0.0 + offset_y]);
-                    uvs.push([size_x + offset_x, size_y + offset_y]);
+                    let uvs = vec![
+                        [0.0 + offset_x, size_y + offset_y],
+                        [0.0 + offset_x, 0.0 + offset_y],
+                        [size_x + offset_x, 0.0 + offset_y],
+                        [size_x + offset_x, size_y + offset_y],
+                    ];
                     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
                 }
             } else {
@@ -233,7 +234,7 @@ fn project_blob_shadows(
             -Vec3::Y,
             1.0,
             true,
-            QueryFilter::new().groups(InteractionGroups::new(0b0001, 0b0001)),
+            QueryFilter::new().groups(CollisionGroups::new(Group::GROUP_1, Group::GROUP_1)),
         ) {
             let mut translation = transform.translation();
             translation.y -= toi;

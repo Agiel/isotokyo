@@ -1,6 +1,6 @@
 use std::{net::UdpSocket, time::SystemTime};
 
-use bevy::{prelude::*, utils::HashMap, window::PresentMode, render::texture::ImageSettings};
+use bevy::{prelude::*, utils::HashMap, window::PresentMode};
 use bevy_egui::{EguiContext, EguiPlugin};
 use bevy_rapier3d::prelude::*;
 use bevy_renet::{
@@ -17,16 +17,16 @@ use isotokyo::{
 };
 use renet_visualizer::RenetServerVisualizer;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Resource)]
 pub struct ServerLobby {
     pub players: HashMap<u64, Entity>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Resource)]
 struct NetworkTick(u32);
 
 // Clients last received ticks
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Resource)]
 struct ClientTicks(HashMap<u64, Option<u32>>);
 
 fn new_renet_server() -> RenetServer {
@@ -43,17 +43,21 @@ fn new_renet_server() -> RenetServer {
 
 fn main() {
     App::new()
-        .insert_resource(WindowDescriptor {
-            title: "Isotokyo Server".into(),
-            width: 1280.,
-            height: 720.,
-            present_mode: PresentMode::Mailbox,
-            ..default()
-        })
         .insert_resource(ClearColor(Color::rgb(0.125, 0.125, 0.125)))
-        .insert_resource(ImageSettings::default_nearest())
-        .add_plugins(DefaultPlugins)
-        .add_plugin(RenetServerPlugin)
+        .add_plugins(DefaultPlugins
+            .set(ImagePlugin::default_nearest())
+            .set(WindowPlugin {
+                window: WindowDescriptor {
+                    title: "Isotokyo Server".into(),
+                    width: 1280.,
+                    height: 720.,
+                    present_mode: PresentMode::Mailbox,
+                    ..default()
+                },
+                ..default()
+            })
+        )
+        .add_plugin(RenetServerPlugin::default())
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(RapierDebugRenderPlugin::default())
         .add_plugin(EguiPlugin)
@@ -106,7 +110,7 @@ fn server_update_system(
                 // Spawn new player
                 let transform = Transform::from_xyz(0.0, 0.51, 0.0);
                 let player_entity = commands
-                    .spawn_bundle(PbrBundle {
+                    .spawn(PbrBundle {
                         mesh: meshes.add(Mesh::from(shape::Capsule {
                             depth: 0.5,
                             radius: 0.25,
@@ -119,7 +123,7 @@ fn server_update_system(
                     .insert(RigidBody::Dynamic)
                     .insert(LockedAxes::ROTATION_LOCKED)
                     .insert(Collider::capsule_y(0.25, 0.25))
-                    .insert(CollisionGroups::new(0b0010, 0b1111))
+                    .insert(CollisionGroups::new(Group::GROUP_2, Group::all()))
                     .insert(PlayerInput::default())
                     .insert(Velocity::default())
                     .insert(player::IsGrounded(true))
@@ -129,7 +133,6 @@ fn server_update_system(
                     })
                     .insert(Player {
                         id: *id,
-                        ..default()
                     })
                     .id();
 
@@ -220,7 +223,7 @@ fn server_network_sync(
 
 pub fn setup_simple_camera(mut commands: Commands) {
     // camera
-    commands.spawn_bundle(Camera3dBundle {
+    commands.spawn(Camera3dBundle {
         transform: Transform::from_xyz(10.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..Default::default()
     });

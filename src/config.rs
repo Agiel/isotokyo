@@ -25,7 +25,7 @@ fn read_config(mut commands: Commands, mut physics_config: ResMut<RapierConfigur
     commands.insert_resource(config);
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Resource)]
 pub struct Config {
     pub key_bindings: HashMap<KeyCode, Vec<InputAction>>,
     pub physics: PhysicsConfig,

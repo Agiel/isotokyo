@@ -14,7 +14,7 @@ pub struct Player {
     pub id: u64,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Resource)]
 pub struct MostRecentTick(pub Option<u32>);
 
 #[derive(Debug, Serialize, Deserialize, Component)]
@@ -126,7 +126,7 @@ pub fn server_connection_config() -> RenetConnectionConfig {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Resource)]
 pub struct NetworkMapping(pub HashMap<Entity, Entity>);
 
 #[derive(Debug)]
@@ -135,7 +135,7 @@ pub struct PlayerInfo {
     pub server_entity: Entity,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Resource)]
 pub struct ClientLobby {
     pub players: HashMap<u64, PlayerInfo>,
 }
