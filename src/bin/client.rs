@@ -1,6 +1,6 @@
 use std::{net::UdpSocket, time::SystemTime};
 
-use bevy::{prelude::*, window::PresentMode, render::texture::ImageSettings};
+use bevy::{prelude::*, window::PresentMode};
 use bevy_egui::{EguiContext, EguiPlugin};
 use bevy_rapier3d::prelude::*;
 use bevy_renet::{
@@ -36,7 +36,6 @@ fn new_renet_client() -> RenetClient {
     RenetClient::new(
         current_time,
         socket,
-        client_id,
         connection_config,
         authentication,
     )
@@ -45,17 +44,21 @@ fn new_renet_client() -> RenetClient {
 
 fn main() {
     App::new()
-        .insert_resource(WindowDescriptor {
-            title: "Isotokyo".into(),
-            width: 1280.,
-            height: 720.,
-            present_mode: PresentMode::Fifo,
-            ..default()
-        })
         .insert_resource(ClearColor(Color::rgb(0.125, 0.125, 0.125)))
-        .insert_resource(ImageSettings::default_nearest())
-        .add_plugins(DefaultPlugins)
-        .add_plugin(RenetClientPlugin)
+        .add_plugins(DefaultPlugins
+            .set(ImagePlugin::default_nearest())
+            .set(WindowPlugin {
+                window: WindowDescriptor {
+                    title: "Isotokyo".into(),
+                    width: 1280.,
+                    height: 720.,
+                    present_mode: PresentMode::Fifo,
+                    ..default()
+                },
+                ..default()
+            })
+        )
+        .add_plugin(RenetClientPlugin::default())
         .add_plugin(EguiPlugin)
         .add_plugin(config::ConfigPlugin)
         .add_plugin(input::InputPlugin)
@@ -116,7 +119,7 @@ fn client_send_input(
     mut client: ResMut<RenetClient>,
 ) {
     if let Ok(player_input) = player_query.get_single() {
-        let input_message = bincode::serialize(&*player_input).unwrap();
+        let input_message = bincode::serialize(player_input).unwrap();
         client.send_message(ClientChannel::Input.id(), input_message);
     }
 }

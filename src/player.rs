@@ -26,6 +26,8 @@ pub struct ServerPlayerPlugin;
 impl Plugin for ServerPlayerPlugin {
     fn build(&self, _app: &mut App) {}
 }
+
+#[derive(Resource)]
 struct PlayerPreload(Vec<Handle<Image>>);
 
 fn setup_player(
@@ -43,7 +45,7 @@ fn setup_player(
 
     // Crosshair
     commands
-        .spawn_bundle(PbrBundle {
+        .spawn(PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Icosphere {
                 radius: 0.05,
                 ..default()
@@ -94,14 +96,14 @@ pub fn client_spawn_players(
             ..default()
         }));
 
-        let mut player = commands.spawn_bundle(SpatialBundle {
+        let mut player = commands.spawn(SpatialBundle {
             transform: Transform::from_translation(spawn.position),
             ..default()
         });
         player
             .insert(Player::default())
             .insert(Collider::capsule_y(0.25, 0.25))
-            .insert(CollisionGroups::new(0b0010, 0b1111))
+            .insert(CollisionGroups::new(Group::GROUP_2, Group::all()))
             .insert(Velocity::default())
             .insert(LockedAxes::ROTATION_LOCKED)
             .insert(Friction {
@@ -112,7 +114,7 @@ pub fn client_spawn_players(
             .with_children(|parent| {
                 // Sprite
                 parent
-                    .spawn_bundle(PbrBundle {
+                    .spawn(PbrBundle {
                         mesh: mesh_handle,
                         material: material_handle,
                         ..default()
@@ -122,7 +124,7 @@ pub fn client_spawn_players(
                     .insert(Sequence::None);
                 // Blob shadow
                 parent
-                    .spawn_bundle(PbrBundle {
+                    .spawn(PbrBundle {
                         mesh: meshes.add(Mesh::from(shape::Plane { size: 1.0 })),
                         material: materials.add(StandardMaterial {
                             base_color: Color::BLACK,
@@ -145,7 +147,7 @@ pub fn client_spawn_players(
                 .insert(PlayerInput::default())
                 .with_children(|parent| {
                     // Light
-                    parent.spawn_bundle(PointLightBundle {
+                    parent.spawn(PointLightBundle {
                         point_light: PointLight {
                             intensity: 2400.0,
                             ..default()
@@ -206,7 +208,7 @@ pub fn player_input(
             && !input.just_released(InputAction::Jump);
 
         let (camera, camera_transform) = cam_query.single();
-        if let Some(ray) = Ray3d::from_screenspace(&windows, &camera, &camera_transform) {
+        if let Some(ray) = Ray3d::from_screenspace(&windows, camera, camera_transform) {
             player_input.aim_ray = ray;
         }
     }
@@ -284,12 +286,12 @@ fn check_grounded(transform: &Transform, physics_context: &RapierContext) -> boo
         -Vec3::Y,
         0.5,
         true,
-        QueryFilter::new().groups(InteractionGroups::new(0b0001, 0b0001)),
+        QueryFilter::new().groups(CollisionGroups::new(Group::GROUP_1, Group::GROUP_1)),
     ) {
         return true;
     }
 
-    return false;
+    false
 }
 
 fn friction(velocity: &mut Velocity, is_grounded: bool, config: &Config, delta_time: f32) {

@@ -33,7 +33,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
     };
 
     commands
-        .spawn_bundle(
+        .spawn(
             TextBundle::from_sections([
                 TextSection::new("FPS: ", style.clone()),
                 TextSection::new("", style.clone()),
@@ -50,7 +50,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         )
         .insert(FpsCounter);
     commands
-        .spawn_bundle(
+        .spawn(
             TextBundle::from_sections([
                 TextSection::new("Speed: ", style.clone()),
                 TextSection::new("", style.clone()),
@@ -67,10 +67,10 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         )
         .insert(Speedometer);
     commands
-        .spawn_bundle(
+        .spawn(
             TextBundle::from_sections([
                 TextSection::new("Max: ", style.clone()),
-                TextSection::new("", style.clone()),
+                TextSection::new("", style),
             ])
             .with_style(Style {
                 position_type: PositionType::Absolute,
@@ -102,7 +102,7 @@ fn update_speed(
 ) {
     for mut text in query.iter_mut() {
         if let Ok(velocity) = player_query.get_single() {
-            let mut velocity = velocity.clone();
+            let mut velocity = *velocity;
             velocity.linvel.y = 0.0;
             // Update the value of the second section
             text.sections[1].value = format!("{:.2}", velocity.linvel.length());
@@ -116,7 +116,7 @@ fn max_speed(
 ) {
     for (mut text, mut max_speed) in query.iter_mut() {
         if let Ok(velocity) = player_query.get_single() {
-            let mut velocity = velocity.clone();
+            let mut velocity = *velocity;
             velocity.linvel.y = 0.0;
             if velocity.linvel.length() > max_speed.0 {
                 max_speed.0 = velocity.linvel.length();
