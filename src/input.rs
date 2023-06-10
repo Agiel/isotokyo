@@ -11,7 +11,7 @@ pub struct InputPlugin;
 impl Plugin for InputPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Input<InputAction>>()
-            .add_system_to_stage(CoreStage::PreUpdate, keyboard_input_system);
+            .add_system(keyboard_input_system.in_base_set(CoreSet::PreUpdate));
     }
 }
 

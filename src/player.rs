@@ -6,9 +6,11 @@ use crate::networking::NetworkMapping;
 use crate::networking::Player;
 use crate::networking::PlayerInfo;
 use crate::sprites::*;
-use crate::utils::*;
 use crate::MainCamera;
 use bevy::prelude::*;
+use bevy::prelude::shape::Icosphere;
+use bevy::prelude::shape::Plane;
+use bevy::window::PrimaryWindow;
 use bevy_rapier3d::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -46,10 +48,10 @@ fn setup_player(
     // Crosshair
     commands
         .spawn(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Icosphere {
+            mesh: meshes.add(Mesh::try_from(Icosphere {
                 radius: 0.05,
                 ..default()
-            })),
+            }).unwrap()),
             material: materials.add(StandardMaterial {
                 base_color: Color::WHITE,
                 unlit: true,
@@ -125,7 +127,7 @@ pub fn client_spawn_players(
                 // Blob shadow
                 parent
                     .spawn(PbrBundle {
-                        mesh: meshes.add(Mesh::from(shape::Plane { size: 1.0 })),
+                        mesh: meshes.add(Mesh::from(Plane::from_size(1.0))),
                         material: materials.add(StandardMaterial {
                             base_color: Color::BLACK,
                             base_color_texture: Some(
@@ -175,13 +177,13 @@ pub struct PlayerInput {
     forward: f32,
     right: f32,
     jump: bool,
-    aim_ray: Ray3d,
+    aim_ray: Ray,
     pub most_recent_tick: Option<u32>,
 }
 
 pub fn player_input(
     input: Res<Input<InputAction>>,
-    windows: Res<Windows>,
+    primary_window: Query<&Window, With<PrimaryWindow>>,
     mut player_query: Query<&mut PlayerInput>,
     most_recent_tick: Res<MostRecentTick>,
     _mouse_button_input: Res<Input<MouseButton>>,
@@ -208,9 +210,11 @@ pub fn player_input(
             && !input.just_released(InputAction::Jump);
 
         let (camera, camera_transform) = cam_query.single();
-        if let Some(ray) = Ray3d::from_screenspace(&windows, camera, camera_transform) {
+        if let Some(cursor_pos) = primary_window.single().cursor_position() {
+        if let Some(ray) = camera.viewport_to_world(camera_transform, cursor_pos) {
             player_input.aim_ray = ray;
         }
+    }
     }
 }
 
@@ -218,12 +222,11 @@ pub fn update_crosshair(
     query: Query<&PlayerInput, With<LocalPlayer>>,
     mut crosshair_query: Query<&mut Transform, (With<Crosshair>, Without<LocalPlayer>)>,
 ) {
+    let mut crosshair_transform = crosshair_query.single_mut();
     if let Ok(player_input) = query.get_single() {
-        if let (Some(aim_point), Ok(mut crosshair_transform)) = (
-            player_input.aim_ray.intersect_y_plane(0.0),
-            crosshair_query.get_single_mut(),
-        ) {
-            crosshair_transform.translation = aim_point;
+        let aim_ray = player_input.aim_ray;
+        if let Some(distance) = aim_ray.intersect_plane(Vec3::ZERO, Vec3::Y) {
+            crosshair_transform.translation = aim_ray.origin + aim_ray.direction * distance;
         }
     }
 }
@@ -273,8 +276,9 @@ pub fn player_move(
     }
 }
 
-fn rotate(transform: &mut Transform, aim_ray: &Ray3d) {
-    if let Some(mut aim_point) = aim_ray.intersect_y_plane(0.0) {
+fn rotate(transform: &mut Transform, aim_ray: &Ray) {
+    if let Some(distance) = aim_ray.intersect_plane(Vec3::ZERO, Vec3::Y) {
+        let mut aim_point = aim_ray.origin + aim_ray.direction * distance;
         aim_point.y = transform.translation.y;
         transform.look_at(aim_point, Vec3::Y);
     }
