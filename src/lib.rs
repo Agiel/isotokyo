@@ -4,9 +4,8 @@ pub mod player;
 pub mod networking;
 pub mod sprites;
 pub mod ui;
-pub mod utils;
 
-use bevy::{prelude::*, render::camera::ScalingMode};
+use bevy::{prelude::{*, shape::Plane}, render::camera::ScalingMode};
 use bevy_rapier3d::prelude::*;
 use rand::{Rng, SeedableRng};
 use sprites::*;
@@ -20,7 +19,7 @@ pub fn setup_camera(mut commands: Commands) {
     // Set up the camera
     let mut camera = Camera3dBundle {
         projection: OrthographicProjection {
-            scaling_mode: ScalingMode::WindowSize,
+            scaling_mode: ScalingMode::WindowSize(1.0),
             scale: 1.0 / 64.0,
             ..default()
         }.into(),
@@ -46,7 +45,7 @@ pub fn generate_map(
         ..default()
     });
 
-    let mesh_handle = meshes.add(Mesh::from(shape::Plane { size: 1.0 }));
+    let mesh_handle = meshes.add(Mesh::from(Plane::from_size(1.0)));
 
     // Plane
     for x in -MAP_SIZE / 2..MAP_SIZE / 2 {
@@ -102,7 +101,7 @@ pub fn generate_map(
         size: Vec2::new(1.5, 2.0),
         ..default()
     }));
-    let plane_handle = meshes.add(Mesh::from(shape::Plane { size: 1.0 }));
+    let plane_handle = meshes.add(Mesh::from(Plane::from_size(1.0)));
     for _ in 0..128 {
         let x = rng.gen::<f32>() * MAP_SIZE as f32 - (MAP_SIZE / 2) as f32;
         let z = rng.gen::<f32>() * MAP_SIZE as f32 - (MAP_SIZE / 2) as f32;

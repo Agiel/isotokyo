@@ -1,7 +1,7 @@
 use std::{net::UdpSocket, time::SystemTime};
 
 use bevy::{prelude::*, utils::HashMap, window::PresentMode};
-use bevy_egui::{EguiContext, EguiPlugin};
+use bevy_egui::{EguiPlugin, EguiContexts};
 use bevy_rapier3d::prelude::*;
 use bevy_renet::{
     renet::{RenetServer, ServerAuthentication, ServerConfig, ServerEvent},
@@ -47,13 +47,12 @@ fn main() {
         .add_plugins(DefaultPlugins
             .set(ImagePlugin::default_nearest())
             .set(WindowPlugin {
-                window: WindowDescriptor {
+                primary_window: Some(Window {
                     title: "Isotokyo Server".into(),
-                    width: 1280.,
-                    height: 720.,
+                    resolution: (1280., 720.).into(),
                     present_mode: PresentMode::Mailbox,
                     ..default()
-                },
+                }),
                 ..default()
             })
         )
@@ -180,12 +179,12 @@ fn server_update_system(
 }
 
 fn update_visulizer_system(
-    mut egui_context: ResMut<EguiContext>,
+    mut egui_contexts: EguiContexts,
     mut visualizer: ResMut<RenetServerVisualizer<200>>,
     server: Res<RenetServer>,
 ) {
     visualizer.update(&server);
-    visualizer.show_window(egui_context.ctx_mut());
+    visualizer.show_window(egui_contexts.ctx_mut());
 }
 
 #[allow(clippy::type_complexity)]

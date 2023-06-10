@@ -1,11 +1,11 @@
 use std::{net::UdpSocket, time::SystemTime};
 
 use bevy::{prelude::*, window::PresentMode};
-use bevy_egui::{EguiContext, EguiPlugin};
+use bevy_egui::{EguiPlugin, EguiContexts};
 use bevy_rapier3d::prelude::*;
 use bevy_renet::{
     renet::{ClientAuthentication, RenetClient, RenetError},
-    RenetClientPlugin, run_if_client_connected,
+    RenetClientPlugin,
 };
 use isotokyo::{
     networking::{
@@ -48,13 +48,12 @@ fn main() {
         .add_plugins(DefaultPlugins
             .set(ImagePlugin::default_nearest())
             .set(WindowPlugin {
-                window: WindowDescriptor {
+                primary_window: Some(Window {
                     title: "Isotokyo".into(),
-                    width: 1280.,
-                    height: 720.,
+                    resolution: (1280., 720.).into(),
                     present_mode: PresentMode::Fifo,
                     ..default()
-                },
+                }),
                 ..default()
             })
         )
@@ -75,14 +74,14 @@ fn main() {
         ))
         .insert_resource(NetworkMapping::default())
         .insert_resource(MostRecentTick::default())
-        .add_system(client_sync_players.with_run_criteria(run_if_client_connected))
+        .add_system(client_sync_players.run_if(bevy_renet::client_connected))
         .add_system(client_spawn_players.after(client_sync_players))
         .add_system(player::player_input.after(client_sync_players))
         .add_system(player::update_crosshair.after(player::player_input))
         .add_system(player::camera_follow_player.after(player::update_crosshair))
         .add_system(player::update_sequence.after(client_sync_players))
-        .add_system(client_send_input.with_run_criteria(run_if_client_connected).after(player::player_input))
-        .add_system(client_send_player_commands.with_run_criteria(run_if_client_connected))
+        .add_system(client_send_input.run_if(bevy_renet::client_connected).after(player::player_input))
+        .add_system(client_send_player_commands.run_if(bevy_renet::client_connected))
         .add_system(update_visulizer_system)
         .add_startup_system(setup_camera)
         .add_startup_system(generate_map)
@@ -99,7 +98,7 @@ fn panic_on_error_system(mut renet_error: EventReader<RenetError>) {
 }
 
 fn update_visulizer_system(
-    mut egui_context: ResMut<EguiContext>,
+    mut egui_contexts: EguiContexts,
     mut visualizer: ResMut<RenetClientVisualizer<200>>,
     client: Res<RenetClient>,
     mut show_visualizer: Local<bool>,
@@ -110,7 +109,7 @@ fn update_visulizer_system(
         *show_visualizer = !*show_visualizer;
     }
     if *show_visualizer {
-        visualizer.show_window(egui_context.ctx_mut());
+        visualizer.show_window(egui_contexts.ctx_mut());
     }
 }
 

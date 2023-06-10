@@ -15,11 +15,11 @@ impl Plugin for Sprite3dPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset_loader::<AnimationSetLoader>()
             .add_asset::<AnimationSet>()
-            .add_system_to_stage(CoreStage::PostUpdate, check_sequence)
-            .add_system_to_stage(CoreStage::PostUpdate, rotate_sprites.after(check_sequence))
-            .add_system_to_stage(CoreStage::PostUpdate, animate_sprites.after(rotate_sprites))
-            .add_system_to_stage(CoreStage::Last, align_billboards)
-            .add_system_to_stage(CoreStage::Last, project_blob_shadows);
+            .add_system(check_sequence.in_base_set(CoreSet::PostUpdate))
+            .add_system(rotate_sprites.in_base_set(CoreSet::PostUpdate).after(check_sequence))
+            .add_system(animate_sprites.in_base_set(CoreSet::PostUpdate).after(rotate_sprites))
+            .add_system(align_billboards.in_base_set(CoreSet::Last))
+            .add_system(project_blob_shadows.in_base_set(CoreSet::Last));
     }
 }
 
