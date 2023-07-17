@@ -1,7 +1,7 @@
 use bevy::{
     asset::{AssetLoader, BoxedFuture, LoadContext, LoadedAsset},
     prelude::*,
-    reflect::TypeUuid,
+    reflect::{TypeUuid, TypePath},
     utils::HashMap,
 };
 use bevy_rapier3d::prelude::*;
@@ -15,11 +15,15 @@ impl Plugin for Sprite3dPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset_loader::<AnimationSetLoader>()
             .add_asset::<AnimationSet>()
-            .add_system(check_sequence.in_base_set(CoreSet::PostUpdate))
-            .add_system(rotate_sprites.in_base_set(CoreSet::PostUpdate).after(check_sequence))
-            .add_system(animate_sprites.in_base_set(CoreSet::PostUpdate).after(rotate_sprites))
-            .add_system(align_billboards.in_base_set(CoreSet::Last))
-            .add_system(project_blob_shadows.in_base_set(CoreSet::Last));
+            .add_systems(PostUpdate, (
+                check_sequence,
+                rotate_sprites,
+                animate_sprites
+            ).chain())
+            .add_systems(Last, (
+                align_billboards,
+                project_blob_shadows
+            ));
     }
 }
 
@@ -60,7 +64,7 @@ pub enum Sequence {
     Jump,
 }
 
-#[derive(Deref, DerefMut, Serialize, Deserialize, TypeUuid)]
+#[derive(Deref, DerefMut, Serialize, Deserialize, TypeUuid, TypePath)]
 #[uuid = "2b1255e1-6bb8-4295-93ee-6be7ebe405d0"]
 pub struct AnimationSet(HashMap<Sequence, Animation>);
 
@@ -94,15 +98,15 @@ fn check_sequence(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut query: Query<(&mut Animator, &mut Sequence, &Handle<StandardMaterial>), Changed<Sequence>>,
 ) {
-    for (mut animator, mut sequence, material_handle) in query.iter_mut() {
+    for (mut animator, mut sequence, material_handle) in &mut query {
         if let Some(animation_set) = animation_sets.get(&animator.animation_handle) {
-            if !animation_set.contains_key(&sequence) {
+            if !animation_set.contains_key(sequence.as_ref()) {
                 *sequence = Sequence::Idle;
             }
             animator.frame = 0;
             animator.next_frame = 0.0;
-            if let Some(mut material) = materials.get_mut(material_handle) {
-                let animation = animation_set.get(&sequence).unwrap();
+            if let Some(material) = materials.get_mut(material_handle) {
+                let animation = animation_set.get(sequence.as_ref()).unwrap();
                 material.base_color_texture = Some(asset_server.load(animation.texture.as_str()));
             }
         }

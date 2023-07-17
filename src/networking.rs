@@ -1,7 +1,7 @@
 use bevy::{prelude::*, utils::HashMap};
 use bevy_renet::renet::{
-    ChannelConfig, ReliableChannelConfig, RenetConnectionConfig, UnreliableChannelConfig,
-    NETCODE_KEY_BYTES,
+    ChannelConfig, ConnectionConfig, SendType,
+    transport::NETCODE_KEY_BYTES,
 };
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -9,7 +9,7 @@ use std::time::Duration;
 pub const PRIVATE_KEY: &[u8; NETCODE_KEY_BYTES] = b"an example very very secret key."; // 32-bytes
 pub const PROTOCOL_ID: u64 = 7;
 
-#[derive(Debug, Default, Component)]
+#[derive(Debug, Component)]
 pub struct Player {
     pub id: u64,
 }
@@ -17,7 +17,7 @@ pub struct Player {
 #[derive(Debug, Default, Resource)]
 pub struct MostRecentTick(pub Option<u32>);
 
-#[derive(Debug, Serialize, Deserialize, Component)]
+#[derive(Debug, Serialize, Deserialize, Component, Event)]
 pub enum PlayerCommand {
     BasicAttack { cast_at: Vec3 },
 }
@@ -29,7 +29,7 @@ pub enum ClientChannel {
 
 pub enum ServerChannel {
     ServerMessages,
-    NetworkFrame,
+    NetworkedEntities,
 }
 
 #[derive(Debug, Serialize, Deserialize, Component)]
@@ -59,72 +59,72 @@ pub struct NetworkFrame {
     pub entities: NetworkedEntities,
 }
 
-impl ClientChannel {
-    pub fn id(&self) -> u8 {
-        match self {
-            Self::Input => 0,
-            Self::Command => 1,
+impl From<ClientChannel> for u8 {
+    fn from(channel_id: ClientChannel) -> Self {
+        match channel_id {
+            ClientChannel::Command => 0,
+            ClientChannel::Input => 1,
         }
     }
+}
 
+impl ClientChannel {
     pub fn channels_config() -> Vec<ChannelConfig> {
         vec![
-            ReliableChannelConfig {
-                channel_id: Self::Input.id(),
-                message_resend_time: Duration::ZERO,
-                ..Default::default()
-            }
-            .into(),
-            ReliableChannelConfig {
-                channel_id: Self::Command.id(),
-                message_resend_time: Duration::ZERO,
-                ..Default::default()
-            }
-            .into(),
+            ChannelConfig {
+                channel_id: Self::Input.into(),
+                max_memory_usage_bytes: 5 * 1024 * 1024,
+                send_type: SendType::ReliableOrdered {
+                    resend_time: Duration::ZERO,
+                },
+            },
+            ChannelConfig {
+                channel_id: Self::Command.into(),
+                max_memory_usage_bytes: 5 * 1024 * 1024,
+                send_type: SendType::ReliableOrdered {
+                    resend_time: Duration::ZERO,
+                },
+            },
         ]
+    }
+}
+
+impl From<ServerChannel> for u8 {
+    fn from(channel_id: ServerChannel) -> Self {
+        match channel_id {
+            ServerChannel::NetworkedEntities => 0,
+            ServerChannel::ServerMessages => 1,
+        }
     }
 }
 
 impl ServerChannel {
-    pub fn id(&self) -> u8 {
-        match self {
-            Self::NetworkFrame => 0,
-            Self::ServerMessages => 1,
-        }
-    }
-
     pub fn channels_config() -> Vec<ChannelConfig> {
         vec![
-            UnreliableChannelConfig {
-                channel_id: Self::NetworkFrame.id(),
-                ..Default::default()
-            }
-            .into(),
-            ReliableChannelConfig {
-                channel_id: Self::ServerMessages.id(),
-                message_resend_time: Duration::from_millis(200),
-                ..Default::default()
-            }
-            .into(),
+            ChannelConfig {
+                channel_id: Self::NetworkedEntities.into(),
+                max_memory_usage_bytes: 10 * 1024 * 1024,
+                send_type: SendType::Unreliable,
+            },
+            ChannelConfig {
+                channel_id: Self::ServerMessages.into(),
+                max_memory_usage_bytes: 10 * 1024 * 1024,
+                send_type: SendType::ReliableOrdered {
+                    resend_time: Duration::from_millis(200),
+                },
+            },
         ]
     }
 }
 
-pub fn client_connection_config() -> RenetConnectionConfig {
-    RenetConnectionConfig {
-        send_channels_config: ClientChannel::channels_config(),
-        receive_channels_config: ServerChannel::channels_config(),
-        ..Default::default()
+pub fn connection_config() -> ConnectionConfig {
+    ConnectionConfig {
+        available_bytes_per_tick: 1024 * 1024,
+        client_channels_config: ClientChannel::channels_config(),
+        server_channels_config: ServerChannel::channels_config(),
     }
 }
 
-pub fn server_connection_config() -> RenetConnectionConfig {
-    RenetConnectionConfig {
-        send_channels_config: ServerChannel::channels_config(),
-        receive_channels_config: ClientChannel::channels_config(),
-        ..Default::default()
-    }
-}
 
 #[derive(Default, Resource)]
 pub struct NetworkMapping(pub HashMap<Entity, Entity>);

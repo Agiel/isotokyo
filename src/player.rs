@@ -19,7 +19,7 @@ pub struct ClientPlayerPlugin;
 impl Plugin for ClientPlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<SpawnPlayer>()
-            .add_startup_system(setup_player);
+            .add_systems(Startup, setup_player);
     }
 }
 
@@ -62,6 +62,7 @@ fn setup_player(
         .insert(Crosshair);
 }
 
+#[derive(Event)]
 pub struct SpawnPlayer {
     pub id: u64,
     pub entity: Entity,
@@ -103,7 +104,7 @@ pub fn client_spawn_players(
             ..default()
         });
         player
-            .insert(Player::default())
+            .insert(Player { id: spawn.id })
             .insert(Collider::capsule_y(0.25, 0.25))
             .insert(CollisionGroups::new(Group::GROUP_2, Group::all()))
             .insert(Velocity::default())
@@ -366,6 +367,7 @@ pub fn update_sequence(
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub fn camera_follow_player(
     mut query: Query<&mut Transform, With<MainCamera>>,
     player_query: Query<&Transform, (With<LocalPlayer>, Without<MainCamera>)>,

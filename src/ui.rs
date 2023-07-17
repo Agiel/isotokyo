@@ -1,4 +1,4 @@
-use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
+use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, DiagnosticsStore};
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::Velocity;
 
@@ -17,11 +17,13 @@ pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(FrameTimeDiagnosticsPlugin::default())
-            .add_startup_system(setup_ui)
-            .add_system(update_fps)
-            .add_system(update_speed)
-            .add_system(max_speed);
+        app.add_plugins(FrameTimeDiagnosticsPlugin)
+            .add_systems(Startup, setup_ui)
+            .add_systems(Update, (
+                update_fps,
+                update_speed,
+                max_speed
+            ));
     }
 }
 
@@ -40,11 +42,8 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             ])
             .with_style(Style {
                 position_type: PositionType::Absolute,
-                position: UiRect {
-                    top: Val::Px(0.0),
-                    left: Val::Px(12.0),
-                    ..default()
-                },
+                top: Val::Px(0.0),
+                left: Val::Px(12.0),
                 ..default()
             }),
         )
@@ -57,11 +56,8 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             ])
             .with_style(Style {
                 position_type: PositionType::Absolute,
-                position: UiRect {
-                    top: Val::Px(20.0),
-                    left: Val::Px(12.0),
-                    ..default()
-                },
+                top: Val::Px(20.0),
+                left: Val::Px(12.0),
                 ..default()
             }),
         )
@@ -74,18 +70,15 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             ])
             .with_style(Style {
                 position_type: PositionType::Absolute,
-                position: UiRect {
-                    top: Val::Px(40.0),
-                    left: Val::Px(12.0),
-                    ..default()
-                },
+                top: Val::Px(40.0),
+                left: Val::Px(12.0),
                 ..default()
             }),
         )
         .insert(MaxSpeed::default());
 }
 
-fn update_fps(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<FpsCounter>>) {
+fn update_fps(diagnostics: Res<DiagnosticsStore>, mut query: Query<&mut Text, With<FpsCounter>>) {
     for mut text in query.iter_mut() {
         if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
             if let Some(average) = fps.average() {
