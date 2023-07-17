@@ -4,27 +4,29 @@ use bevy::{prelude::*, window::PresentMode};
 use bevy_egui::{EguiPlugin, EguiContexts};
 use bevy_rapier3d::prelude::*;
 use bevy_renet::{
-    renet::{ClientAuthentication, RenetClient, RenetError},
-    RenetClientPlugin,
+    renet::{
+        transport::{ClientAuthentication, NetcodeClientTransport, NetcodeTransportError},
+        RenetClient,
+    },
+    RenetClientPlugin, transport::NetcodeClientPlugin,
 };
 use isotokyo::{
     networking::{
-        client_connection_config, ClientChannel, ClientLobby, MostRecentTick, NetworkFrame,
+        connection_config, ClientChannel, ClientLobby, MostRecentTick,
         NetworkMapping, PlayerCommand, PlayerInfo, ServerChannel, ServerMessages,
-        PROTOCOL_ID,
+        PROTOCOL_ID, NetworkedEntities,
     },
     player::{client_spawn_players, SpawnPlayer, PlayerInput},
     *,
 };
 use renet_visualizer::{RenetClientVisualizer, RenetVisualizerStyle};
 
-fn new_renet_client() -> RenetClient {
+fn new_renet_client() -> (RenetClient, NetcodeClientTransport) {
+    let client = RenetClient::new(connection_config());
+
     let server_addr = "127.0.0.1:5000".parse().unwrap();
     let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
-    let connection_config = client_connection_config();
-    let current_time = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap();
+    let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
     let client_id = current_time.as_millis() as u64;
     let authentication = ClientAuthentication::Unsecure {
         client_id,
@@ -33,65 +35,75 @@ fn new_renet_client() -> RenetClient {
         user_data: None,
     };
 
-    RenetClient::new(
-        current_time,
-        socket,
-        connection_config,
-        authentication,
-    )
-    .unwrap()
+    let transport = NetcodeClientTransport::new(current_time, authentication, socket).unwrap();
+
+    (client, transport)
 }
 
 fn main() {
+    let (client, transport) = new_renet_client();
     App::new()
         .insert_resource(ClearColor(Color::rgb(0.125, 0.125, 0.125)))
-        .add_plugins(DefaultPlugins
-            .set(ImagePlugin::default_nearest())
-            .set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: "Isotokyo".into(),
-                    resolution: (1280., 720.).into(),
-                    present_mode: PresentMode::Fifo,
+        .add_plugins((
+            DefaultPlugins
+                .set(ImagePlugin::default_nearest())
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "Isotokyo".into(),
+                        resolution: (1280., 720.).into(),
+                        present_mode: PresentMode::Fifo,
+                        ..default()
+                    }),
                     ..default()
                 }),
-                ..default()
-            })
-        )
-        .add_plugin(RenetClientPlugin::default())
-        .add_plugin(EguiPlugin)
-        .add_plugin(config::ConfigPlugin)
-        .add_plugin(input::InputPlugin)
-        .add_plugin(sprites::Sprite3dPlugin)
-        .add_plugin(player::ClientPlayerPlugin)
-        .add_plugin(ui::UiPlugin)
-        .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
-        // .add_plugin(RapierDebugRenderPlugin::default())
-        .add_event::<PlayerCommand>()
+            RenetClientPlugin,
+            NetcodeClientPlugin,
+            EguiPlugin,
+            config::ConfigPlugin,
+            input::InputPlugin,
+            sprites::Sprite3dPlugin,
+            player::ClientPlayerPlugin,
+            ui::UiPlugin,
+            RapierPhysicsPlugin::<NoUserData>::default(),
+            // RapierDebugRenderPlugin::default(),
+        ))
         .insert_resource(ClientLobby::default())
-        .insert_resource(new_renet_client())
+        .insert_resource(client)
+        .insert_resource(transport)
         .insert_resource(RenetClientVisualizer::<200>::new(
             RenetVisualizerStyle::default(),
         ))
         .insert_resource(NetworkMapping::default())
         .insert_resource(MostRecentTick::default())
-        .add_system(client_sync_players.run_if(bevy_renet::client_connected))
-        .add_system(client_spawn_players.after(client_sync_players))
-        .add_system(player::player_input.after(client_sync_players))
-        .add_system(player::update_crosshair.after(player::player_input))
-        .add_system(player::camera_follow_player.after(player::update_crosshair))
-        .add_system(player::update_sequence.after(client_sync_players))
-        .add_system(client_send_input.run_if(bevy_renet::client_connected).after(player::player_input))
-        .add_system(client_send_player_commands.run_if(bevy_renet::client_connected))
-        .add_system(update_visulizer_system)
-        .add_startup_system(setup_camera)
-        .add_startup_system(generate_map)
-        .add_system(panic_on_error_system)
-        .add_system(bevy::window::close_on_esc)
+        .add_event::<PlayerCommand>()
+        .add_systems(Startup, (
+            setup_camera,
+            generate_map,
+        ))
+        .add_systems(Update, (
+            (
+                client_sync_players,
+                client_send_input.after(player::player_input),
+                client_send_player_commands,
+            ).run_if(bevy_renet::transport::client_connected),
+            (
+                client_spawn_players,
+                (
+                    player::player_input,
+                    player::update_crosshair,
+                    player::camera_follow_player
+                ).chain(),
+                player::update_sequence,
+            ).after(client_sync_players),
+            update_visulizer_system,
+            panic_on_error_system,
+            bevy::window::close_on_esc,
+        ))
         .run();
 }
 
 // If any error is found we just panic
-fn panic_on_error_system(mut renet_error: EventReader<RenetError>) {
+fn panic_on_error_system(mut renet_error: EventReader<NetcodeTransportError>) {
     for e in renet_error.iter() {
         panic!("{}", e);
     }
@@ -119,7 +131,7 @@ fn client_send_input(
 ) {
     if let Ok(player_input) = player_query.get_single() {
         let input_message = bincode::serialize(player_input).unwrap();
-        client.send_message(ClientChannel::Input.id(), input_message);
+        client.send_message(ClientChannel::Input, input_message);
     }
 }
 
@@ -129,20 +141,20 @@ fn client_send_player_commands(
 ) {
     for command in player_commands.iter() {
         let command_message = bincode::serialize(command).unwrap();
-        client.send_message(ClientChannel::Command.id(), command_message);
+        client.send_message(ClientChannel::Command, command_message);
     }
 }
 
 fn client_sync_players(
     mut commands: Commands,
     mut client: ResMut<RenetClient>,
+    transport: Res<NetcodeClientTransport>,
     mut lobby: ResMut<ClientLobby>,
     mut network_mapping: ResMut<NetworkMapping>,
-    mut most_recent_tick: ResMut<MostRecentTick>,
     mut spawn_events: EventWriter<SpawnPlayer>,
 ) {
-    let client_id = client.client_id();
-    while let Some(message) = client.receive_message(ServerChannel::ServerMessages.id()) {
+    let client_id = transport.client_id();
+    while let Some(message) = client.receive_message(ServerChannel::ServerMessages) {
         let server_message = bincode::deserialize(&message).unwrap();
         match server_message {
             ServerMessages::PlayerCreate {
@@ -172,26 +184,24 @@ fn client_sync_players(
         }
     }
 
-    while let Some(message) = client.receive_message(ServerChannel::NetworkFrame.id()) {
-        let frame: NetworkFrame = bincode::deserialize(&message).unwrap();
-        match most_recent_tick.0 {
-            None => most_recent_tick.0 = Some(frame.tick),
-            Some(tick) if tick < frame.tick => most_recent_tick.0 = Some(frame.tick),
-            _ => continue,
-        }
+    while let Some(message) = client.receive_message(ServerChannel::NetworkedEntities) {
+        let networked_entities: NetworkedEntities = bincode::deserialize(&message).unwrap();
 
-        for i in 0..frame.entities.entities.len() {
-            if let Some(entity) = network_mapping.0.get(&frame.entities.entities[i]) {
-                let translation = frame.entities.translations[i].into();
-                let rotation = Quat::from_array(frame.entities.rotations[i]);
+        for i in 0..networked_entities.entities.len() {
+            if let Some(entity) = network_mapping.0.get(&networked_entities.entities[i]) {
+                let translation = networked_entities.translations[i].into();
+                let rotation = Quat::from_array(networked_entities.rotations[i]);
                 let transform = Transform {
                     translation,
                     rotation,
                     ..Default::default()
                 };
-                let velocity = Velocity::linear(frame.entities.velocities[i].into());
-                let is_grounded = player::IsGrounded(frame.entities.groundeds[i]);
-                commands.entity(*entity).insert(transform).insert(velocity).insert(is_grounded);
+                let velocity = Velocity::linear(networked_entities.velocities[i].into());
+                let is_grounded = player::IsGrounded(networked_entities.groundeds[i]);
+                commands.entity(*entity)
+                    .insert(transform)
+                    .insert(velocity)
+                    .insert(is_grounded);
             }
         }
     }

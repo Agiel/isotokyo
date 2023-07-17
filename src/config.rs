@@ -10,7 +10,7 @@ pub struct ConfigPlugin;
 
 impl Plugin for ConfigPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(read_config);
+        app.add_systems(Startup, read_config);
     }
 }
 

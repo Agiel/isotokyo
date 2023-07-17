@@ -8,13 +8,13 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1"
-bevy = { version = "0.10.1", features = [ "dynamic_linking", "serialize" ] }
-bevy_egui = "0.20.1"
-bevy_rapier3d = "0.21.0"
-bevy_renet = "0.0.7"
+bevy = { version = "0.11.0", features = [ "dynamic_linking", "serialize" ] }
+bevy_egui = "0.21.0"
+bevy_rapier3d = "0.22.0"
+bevy_renet = { git = "https://github.com/lucaspoffo/renet" }
 bincode = "1.3"
 rand = "0.8"
-renet_visualizer = { version = "0.0.4", features = [ "bevy"] }
+renet_visualizer = { git = "https://github.com/lucaspoffo/renet", features = [ "bevy"] }
 ron = "0.8.0"
 serde = { version = "1", features = [ "derive" ] }
 
