@@ -139,7 +139,7 @@ fn server_update_system(
                         ..Default::default()
                     })
                     .insert(RigidBody::Dynamic)
-                    .insert(TransformInterpolation::default())
+                    // .insert(TransformInterpolation::default())
                     .insert(LockedAxes::ROTATION_LOCKED)
                     .insert(Collider::capsule_y(0.25, 0.25))
                     .insert(CollisionGroups::new(Group::GROUP_2, Group::all()))

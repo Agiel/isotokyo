@@ -91,7 +91,6 @@ fn main() {
                 (
                     player::player_input,
                     player::update_crosshair,
-                    player::camera_follow_player
                 ).chain(),
                 player::update_sequence,
             ).after(client_sync_players),
@@ -99,6 +98,7 @@ fn main() {
             panic_on_error_system,
             bevy::window::close_on_esc,
         ))
+        .add_systems(PostUpdate, player::camera_follow_player)
         .run();
 }
 
