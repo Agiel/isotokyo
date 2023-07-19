@@ -94,7 +94,7 @@ fn main() {
                 ).chain(),
                 player::update_sequence,
             ).after(client_sync_players),
-            update_visulizer_system,
+            update_visualizer_system,
             panic_on_error_system,
             bevy::window::close_on_esc,
         ))
@@ -109,7 +109,7 @@ fn panic_on_error_system(mut renet_error: EventReader<NetcodeTransportError>) {
     }
 }
 
-fn update_visulizer_system(
+fn update_visualizer_system(
     mut egui_contexts: EguiContexts,
     mut visualizer: ResMut<RenetClientVisualizer<200>>,
     client: Res<RenetClient>,

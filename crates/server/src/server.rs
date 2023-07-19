@@ -91,7 +91,7 @@ fn main() {
                 player::player_move,
                 server_network_sync,
             ).chain(),
-            update_visulizer_system,
+            update_visualizer_system,
         ))
         .run();
 }
@@ -195,7 +195,7 @@ fn server_update_system(
     }
 }
 
-fn update_visulizer_system(
+fn update_visualizer_system(
     mut egui_contexts: EguiContexts,
     mut visualizer: ResMut<RenetServerVisualizer<200>>,
     server: Res<RenetServer>,

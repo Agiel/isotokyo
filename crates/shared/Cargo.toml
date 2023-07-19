@@ -1,0 +1,15 @@
+[package]
+name = "isotokyo"
+version = "0.0.0"
+authors = ["Agiel <agiel.negura@gmail.com>"]
+edition = "2021"
+workspace = "../.."
+
+[dependencies]
+anyhow = "1"
+bevy = { version = "0.11.0", features = [ "dynamic_linking", "serialize" ] }
+bevy_rapier3d = "0.22.0"
+bevy_renet = { git = "https://github.com/lucaspoffo/renet" }
+rand = "0.8"
+ron = "0.8.0"
+serde = { version = "1", features = [ "derive" ] }
