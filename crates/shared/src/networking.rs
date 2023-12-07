@@ -1,7 +1,7 @@
 use bevy::{prelude::*, utils::HashMap};
 use bevy_renet::renet::{
     ChannelConfig, ConnectionConfig, SendType,
-    transport::NETCODE_KEY_BYTES,
+    transport::NETCODE_KEY_BYTES, ClientId,
 };
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -11,7 +11,7 @@ pub const PROTOCOL_ID: u64 = 7;
 
 #[derive(Debug, Component)]
 pub struct Player {
-    pub id: u64,
+    pub id: ClientId,
 }
 
 #[derive(Debug, Default, Resource)]
@@ -36,11 +36,11 @@ pub enum ServerChannel {
 pub enum ServerMessages {
     PlayerCreate {
         entity: Entity,
-        id: u64,
+        id: ClientId,
         translation: [f32; 3],
     },
     PlayerRemove {
-        id: u64,
+        id: ClientId,
     },
 }
 
@@ -137,5 +137,5 @@ pub struct PlayerInfo {
 
 #[derive(Debug, Default, Resource)]
 pub struct ClientLobby {
-    pub players: HashMap<u64, PlayerInfo>,
+    pub players: HashMap<ClientId, PlayerInfo>,
 }

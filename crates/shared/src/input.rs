@@ -30,7 +30,7 @@ fn keyboard_input_system(
     config: Res<Config>,
 ) {
     input.clear();
-    for event in keyboard_input_events.iter() {
+    for event in keyboard_input_events.read() {
         if let KeyboardInput {
             key_code: Some(key_code),
             state,

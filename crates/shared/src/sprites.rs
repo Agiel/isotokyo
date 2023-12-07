@@ -1,5 +1,5 @@
 use bevy::{
-    asset::{AssetLoader, BoxedFuture, LoadContext, LoadedAsset},
+    asset::{AssetLoader, BoxedFuture, LoadContext, io::Reader, AsyncReadExt},
     prelude::*,
     reflect::{TypeUuid, TypePath},
     utils::HashMap,
@@ -13,8 +13,9 @@ pub struct Sprite3dPlugin;
 
 impl Plugin for Sprite3dPlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset_loader::<AnimationSetLoader>()
-            .add_asset::<AnimationSet>()
+        app.register_asset_loader(AnimationSetLoader)
+            .init_asset::<AnimationSet>()
+            .init_asset_loader::<AnimationSetLoader>()
             .add_systems(PostUpdate, (
                 check_sequence,
                 rotate_sprites,
@@ -64,7 +65,7 @@ pub enum Sequence {
     Jump,
 }
 
-#[derive(Deref, DerefMut, Serialize, Deserialize, TypeUuid, TypePath)]
+#[derive(Asset, Deref, DerefMut, Serialize, Deserialize, TypeUuid, TypePath)]
 #[uuid = "2b1255e1-6bb8-4295-93ee-6be7ebe405d0"]
 pub struct AnimationSet(HashMap<Sequence, Animation>);
 
@@ -72,15 +73,21 @@ pub struct AnimationSet(HashMap<Sequence, Animation>);
 pub struct AnimationSetLoader;
 
 impl AssetLoader for AnimationSetLoader {
+    type Asset = AnimationSet;
+    type Settings = ();
+    type Error = anyhow::Error;
+
     fn load<'a>(
         &'a self,
-        bytes: &'a [u8],
-        load_context: &'a mut LoadContext,
-    ) -> BoxedFuture<'a, Result<(), anyhow::Error>> {
+        reader: &'a mut Reader,
+        _settings: &'a Self::Settings,
+        _load_context: &'a mut LoadContext,
+    ) -> BoxedFuture<'a, Result<Self::Asset, anyhow::Error>> {
         Box::pin(async move {
-            let animation_set = AnimationSet(ron::de::from_bytes(bytes)?);
-            load_context.set_default_asset(LoadedAsset::new(animation_set));
-            Ok(())
+            let mut bytes = Vec::new();
+            reader.read_to_end(&mut bytes).await?;
+            let animation_set = AnimationSet(ron::de::from_bytes(&bytes)?);
+            Ok(animation_set)
         })
     }
 
@@ -107,7 +114,7 @@ fn check_sequence(
             animator.next_frame = 0.0;
             if let Some(material) = materials.get_mut(material_handle) {
                 let animation = animation_set.get(sequence.as_ref()).unwrap();
-                material.base_color_texture = Some(asset_server.load(animation.texture.as_str()));
+                material.base_color_texture = Some(asset_server.load(&animation.texture));
             }
         }
     }
@@ -185,8 +192,8 @@ fn animate_sprites(
 
             if let Some(texture) = get_texture(&materials, material_handle, &textures) {
                 let texture_size = texture.size();
-                let size_x = animation.size.0 / texture_size.x;
-                let size_y = animation.size.1 / texture_size.y;
+                let size_x = animation.size.0 / texture_size.x as f32;
+                let size_y = animation.size.1 / texture_size.y as f32;
                 let offset_x = (frame % animation.length) as f32 * size_x;
                 let offset_y = (frame / animation.length) as f32 * size_y;
                 // info!("frame: {}, size_x: {}, size_y: {}", frame, size_x, size_y);

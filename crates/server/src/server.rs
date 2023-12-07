@@ -6,7 +6,7 @@ use bevy_rapier3d::prelude::*;
 use bevy_renet::{
     renet::{
         transport::{NetcodeServerTransport, ServerAuthentication, ServerConfig},
-        RenetServer, ServerEvent,
+        RenetServer, ServerEvent, ClientId,
     },
     transport::NetcodeServerPlugin,
     RenetServerPlugin,
@@ -23,7 +23,7 @@ use renet_visualizer::RenetServerVisualizer;
 
 #[derive(Debug, Default, Resource)]
 pub struct ServerLobby {
-    pub players: HashMap<u64, Entity>,
+    pub players: HashMap<ClientId, Entity>,
 }
 
 #[derive(Debug, Default, Resource)]
@@ -38,15 +38,16 @@ fn new_renet_server() -> (RenetServer, NetcodeServerTransport) {
 
     let public_addr = "127.0.0.1:5000".parse().unwrap();
     let socket = UdpSocket::bind(public_addr).unwrap();
+    let current_time: std::time::Duration = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
     let server_config = ServerConfig {
+        current_time,
         max_clients: 64,
         protocol_id: PROTOCOL_ID,
-        public_addr,
+        public_addresses: vec![public_addr],
         authentication: ServerAuthentication::Unsecure,
     };
-    let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
 
-    let transport = NetcodeServerTransport::new(current_time, server_config, socket).unwrap();
+    let transport = NetcodeServerTransport::new(server_config, socket).unwrap();
 
     (server, transport)
 }
@@ -107,7 +108,7 @@ fn server_update_system(
     mut visualizer: ResMut<RenetServerVisualizer<200>>,
     players: Query<(Entity, &Player, &Transform)>,
 ) {
-    for event in server_events.iter() {
+    for event in server_events.read() {
         match event {
             ServerEvent::ClientConnected { client_id } => {
                 println!("Player {} connected.", client_id);

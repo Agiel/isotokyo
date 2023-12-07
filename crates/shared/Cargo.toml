@@ -7,9 +7,9 @@ workspace = "../.."
 
 [dependencies]
 anyhow = "1"
-bevy = { version = "0.11.0", features = [ "dynamic_linking", "serialize" ] }
-bevy_rapier3d = "0.22.0"
-bevy_renet = { git = "https://github.com/lucaspoffo/renet" }
+bevy = { workspace = true }
+bevy_rapier3d = { workspace = true }
+bevy_renet = { workspace = true }
 rand = "0.8"
 ron = "0.8.0"
 serde = { version = "1", features = [ "derive" ] }

@@ -12,6 +12,7 @@ use bevy::prelude::shape::Icosphere;
 use bevy::prelude::shape::Plane;
 use bevy::window::PrimaryWindow;
 use bevy_rapier3d::prelude::*;
+use bevy_renet::renet::ClientId;
 use serde::{Deserialize, Serialize};
 
 pub struct ClientPlayerPlugin;
@@ -64,7 +65,7 @@ fn setup_player(
 
 #[derive(Event)]
 pub struct SpawnPlayer {
-    pub id: u64,
+    pub id: ClientId,
     pub entity: Entity,
     pub position: Vec3,
     pub is_local: bool,
@@ -85,7 +86,7 @@ pub fn client_spawn_players(
     mut network_mapping: ResMut<NetworkMapping>,
     mut spawn_events: EventReader<SpawnPlayer>,
 ) {
-    for spawn in spawn_events.iter() {
+    for spawn in spawn_events.read() {
         // Player
         let material_handle = materials.add(StandardMaterial {
             alpha_mode: AlphaMode::Blend,

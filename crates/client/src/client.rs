@@ -8,7 +8,7 @@ use bevy_renet::{
         transport::{ClientAuthentication, NetcodeClientTransport, NetcodeTransportError},
         RenetClient,
     },
-    RenetClientPlugin, transport::NetcodeClientPlugin,
+    RenetClientPlugin, transport::NetcodeClientPlugin, client_connected,
 };
 use isotokyo::{
     networking::{
@@ -85,7 +85,7 @@ fn main() {
                 client_sync_players,
                 client_send_input.after(player::player_input),
                 client_send_player_commands,
-            ).run_if(bevy_renet::transport::client_connected),
+            ).run_if(client_connected()),
             (
                 client_spawn_players,
                 (
@@ -104,7 +104,7 @@ fn main() {
 
 // If any error is found we just panic
 fn panic_on_error_system(mut renet_error: EventReader<NetcodeTransportError>) {
-    for e in renet_error.iter() {
+    for e in renet_error.read() {
         panic!("{}", e);
     }
 }
@@ -139,7 +139,7 @@ fn client_send_player_commands(
     mut player_commands: EventReader<PlayerCommand>,
     mut client: ResMut<RenetClient>,
 ) {
-    for command in player_commands.iter() {
+    for command in player_commands.read() {
         let command_message = bincode::serialize(command).unwrap();
         client.send_message(ClientChannel::Command, command_message);
     }
@@ -167,7 +167,7 @@ fn client_sync_players(
                     id,
                     entity,
                     position: translation.into(),
-                    is_local: client_id == id,
+                    is_local: client_id == id.raw(),
                 });
             }
             ServerMessages::PlayerRemove { id } => {
