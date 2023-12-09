@@ -1,22 +1,26 @@
 use std::{net::UdpSocket, time::SystemTime};
 
 use bevy::{prelude::*, window::PresentMode};
-use bevy_egui::{EguiPlugin, EguiContexts};
-use bevy_rapier3d::prelude::*;
+use bevy_egui::{EguiContexts, EguiPlugin};
 use bevy_renet::{
+    client_connected,
     renet::{
         transport::{ClientAuthentication, NetcodeClientTransport, NetcodeTransportError},
         RenetClient,
     },
-    RenetClientPlugin, transport::NetcodeClientPlugin, client_connected,
+    transport::NetcodeClientPlugin,
+    RenetClientPlugin,
+};
+use bevy_xpbd_3d::{
+    components::LinearVelocity,
+    plugins::{PhysicsDebugPlugin, PhysicsPlugins},
 };
 use isotokyo::{
     networking::{
-        connection_config, ClientChannel, ClientLobby, MostRecentTick,
-        NetworkMapping, PlayerCommand, PlayerInfo, ServerChannel, ServerMessages,
-        PROTOCOL_ID, NetworkedEntities,
+        connection_config, ClientChannel, ClientLobby, MostRecentTick, NetworkMapping,
+        NetworkedEntities, PlayerCommand, PlayerInfo, ServerChannel, ServerMessages, PROTOCOL_ID,
     },
-    player::{client_spawn_players, SpawnPlayer, PlayerInput},
+    player::{client_spawn_players, PlayerInput, SpawnPlayer},
     *,
 };
 use renet_visualizer::{RenetClientVisualizer, RenetVisualizerStyle};
@@ -26,7 +30,9 @@ fn new_renet_client() -> (RenetClient, NetcodeClientTransport) {
 
     let server_addr = "127.0.0.1:5000".parse().unwrap();
     let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
-    let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
+    let current_time = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap();
     let client_id = current_time.as_millis() as u64;
     let authentication = ClientAuthentication::Unsecure {
         client_id,
@@ -56,6 +62,8 @@ fn main() {
                     }),
                     ..default()
                 }),
+            PhysicsPlugins::default(),
+            // PhysicsDebugPlugin::default(),
             RenetClientPlugin,
             NetcodeClientPlugin,
             EguiPlugin,
@@ -64,8 +72,6 @@ fn main() {
             sprites::Sprite3dPlugin,
             player::ClientPlayerPlugin,
             ui::UiPlugin,
-            RapierPhysicsPlugin::<NoUserData>::default(),
-            // RapierDebugRenderPlugin::default(),
         ))
         .insert_resource(ClientLobby::default())
         .insert_resource(client)
@@ -76,28 +82,27 @@ fn main() {
         .insert_resource(NetworkMapping::default())
         .insert_resource(MostRecentTick::default())
         .add_event::<PlayerCommand>()
-        .add_systems(Startup, (
-            setup_camera,
-            generate_map,
-        ))
-        .add_systems(Update, (
+        .add_systems(Startup, (setup_camera, generate_map))
+        .add_systems(
+            Update,
             (
-                client_sync_players,
-                client_send_input.after(player::player_input),
-                client_send_player_commands,
-            ).run_if(client_connected()),
-            (
-                client_spawn_players,
                 (
-                    player::player_input,
-                    player::update_crosshair,
-                ).chain(),
-                player::update_sequence,
-            ).after(client_sync_players),
-            update_visualizer_system,
-            panic_on_error_system,
-            bevy::window::close_on_esc,
-        ))
+                    client_sync_players,
+                    client_send_input.after(player::player_input),
+                    client_send_player_commands,
+                )
+                    .run_if(client_connected()),
+                (
+                    client_spawn_players,
+                    (player::player_input, player::update_crosshair).chain(),
+                    player::update_sequence,
+                )
+                    .after(client_sync_players),
+                update_visualizer_system,
+                panic_on_error_system,
+                bevy::window::close_on_esc,
+            ),
+        )
         .add_systems(PostUpdate, player::camera_follow_player)
         .run();
 }
@@ -196,9 +201,10 @@ fn client_sync_players(
                     rotation,
                     ..Default::default()
                 };
-                let velocity = Velocity::linear(networked_entities.velocities[i].into());
+                let velocity = LinearVelocity(Vec3::from_array(networked_entities.velocities[i]));
                 let is_grounded = player::IsGrounded(networked_entities.groundeds[i]);
-                commands.entity(*entity)
+                commands
+                    .entity(*entity)
                     .insert(transform)
                     .insert(velocity)
                     .insert(is_grounded);

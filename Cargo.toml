@@ -3,12 +3,12 @@ members = ["crates/*"]
 resolver = "2"
 
 [workspace.dependencies]
-bevy = { version = "0.12.1", features = [ "dynamic_linking", "serialize" ] }
+bevy = { version = "0.12.1", features = ["dynamic_linking", "serialize"] }
 bevy_egui = "0.23.0"
-bevy_rapier3d = "0.23.0"
-bevy_renet = { version = "0.0.10", features = [ "serde" ] }
+bevy_xpbd_3d = "0.3.2"
+bevy_renet = { version = "0.0.10", features = ["serde"] }
 bincode = "1.3"
-renet_visualizer = { version = "0.0.7", features = [ "bevy"] }
+renet_visualizer = { version = "0.0.7", features = ["bevy"] }
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

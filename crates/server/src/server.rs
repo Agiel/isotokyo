@@ -1,21 +1,27 @@
 use std::{net::UdpSocket, time::SystemTime};
 
 use bevy::{prelude::*, utils::HashMap, window::PresentMode};
-use bevy_egui::{EguiPlugin, EguiContexts};
-use bevy_rapier3d::prelude::*;
+use bevy_egui::{EguiContexts, EguiPlugin};
 use bevy_renet::{
     renet::{
         transport::{NetcodeServerTransport, ServerAuthentication, ServerConfig},
-        RenetServer, ServerEvent, ClientId,
+        ClientId, RenetServer, ServerEvent,
     },
     transport::NetcodeServerPlugin,
     RenetServerPlugin,
 };
-use isotokyo::{config, generate_map, player, networking::NetworkedEntities};
+use bevy_xpbd_3d::{
+    components::{
+        CoefficientCombine, Collider, CollisionLayers, Friction, LinearVelocity, LockedAxes,
+        RigidBody,
+    },
+    plugins::{PhysicsDebugPlugin, PhysicsPlugins},
+};
+use isotokyo::{config, generate_map, networking::NetworkedEntities, physics::Layer, player};
 use isotokyo::{
     networking::{
-        connection_config, ClientChannel, Player, PlayerCommand,
-        ServerChannel, ServerMessages, PROTOCOL_ID,
+        connection_config, ClientChannel, Player, PlayerCommand, ServerChannel, ServerMessages,
+        PROTOCOL_ID,
     },
     player::PlayerInput,
 };
@@ -38,7 +44,9 @@ fn new_renet_server() -> (RenetServer, NetcodeServerTransport) {
 
     let public_addr = "127.0.0.1:5000".parse().unwrap();
     let socket = UdpSocket::bind(public_addr).unwrap();
-    let current_time: std::time::Duration = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
+    let current_time: std::time::Duration = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap();
     let server_config = ServerConfig {
         current_time,
         max_clients: 64,
@@ -69,11 +77,11 @@ fn main() {
                 }),
             RenetServerPlugin,
             NetcodeServerPlugin,
-            RapierPhysicsPlugin::<NoUserData>::default(),
-            RapierDebugRenderPlugin::default(),
+            PhysicsPlugins::default(),
+            PhysicsDebugPlugin::default(),
             EguiPlugin,
             config::ConfigPlugin,
-            player::ServerPlayerPlugin
+            player::ServerPlayerPlugin,
         ))
         .insert_resource(ClearColor(Color::rgb(0.125, 0.125, 0.125)))
         .insert_resource(ServerLobby::default())
@@ -82,18 +90,19 @@ fn main() {
         .insert_resource(client)
         .insert_resource(transport)
         .insert_resource(RenetServerVisualizer::<200>::default())
-        .add_systems(Startup, (
-            generate_map,
-            setup_simple_camera,
-        ))
-        .add_systems(Update, (
+        .add_systems(Startup, (generate_map, setup_simple_camera))
+        .add_systems(
+            Update,
             (
-                server_update_system,
-                player::player_move,
-                server_network_sync,
-            ).chain(),
-            update_visualizer_system,
-        ))
+                (
+                    server_update_system,
+                    player::player_move,
+                    server_network_sync,
+                )
+                    .chain(),
+                update_visualizer_system,
+            ),
+        )
         .run();
 }
 
@@ -142,18 +151,15 @@ fn server_update_system(
                     .insert(RigidBody::Dynamic)
                     // .insert(TransformInterpolation::default())
                     .insert(LockedAxes::ROTATION_LOCKED)
-                    .insert(Collider::capsule_y(0.25, 0.25))
-                    .insert(CollisionGroups::new(Group::GROUP_2, Group::all()))
+                    .insert(Collider::capsule(0.5, 0.25))
+                    .insert(CollisionLayers::new(
+                        [Layer::Player],
+                        [Layer::Enemy, Layer::Ground],
+                    ))
+                    .insert(Friction::new(0.0).with_combine_rule(CoefficientCombine::Min))
                     .insert(PlayerInput::default())
-                    .insert(Velocity::default())
                     .insert(player::IsGrounded(true))
-                    .insert(Friction {
-                        coefficient: 0.0,
-                        combine_rule: CoefficientCombineRule::Min,
-                    })
-                    .insert(Player {
-                        id: *client_id,
-                    })
+                    .insert(Player { id: *client_id })
                     .id();
 
                 lobby.players.insert(*client_id, player_entity);
@@ -174,7 +180,8 @@ fn server_update_system(
                     commands.entity(player_entity).despawn();
                 }
 
-                let message = bincode::serialize(&ServerMessages::PlayerRemove { id: *client_id }).unwrap();
+                let message =
+                    bincode::serialize(&ServerMessages::PlayerRemove { id: *client_id }).unwrap();
                 server.broadcast_message(ServerChannel::ServerMessages, message);
             }
         }
@@ -206,13 +213,18 @@ fn update_visualizer_system(
 }
 
 #[allow(clippy::type_complexity)]
-fn server_network_sync(mut server: ResMut<RenetServer>, query: Query<(Entity, &Transform, &Velocity, &player::IsGrounded), With<Player>>) {
+fn server_network_sync(
+    mut server: ResMut<RenetServer>,
+    query: Query<(Entity, &Transform, &LinearVelocity, &player::IsGrounded), With<Player>>,
+) {
     let mut networked_entities = NetworkedEntities::default();
     for (entity, transform, velocity, is_grounded) in query.iter() {
         networked_entities.entities.push(entity);
-        networked_entities.translations.push(transform.translation.into());
+        networked_entities
+            .translations
+            .push(transform.translation.into());
         networked_entities.rotations.push(transform.rotation.into());
-        networked_entities.velocities.push(velocity.linvel.into());
+        networked_entities.velocities.push(velocity.to_array());
         networked_entities.groundeds.push(is_grounded.0);
     }
 

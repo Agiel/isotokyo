@@ -1,5 +1,5 @@
 use bevy::{prelude::*, utils::HashMap};
-use bevy_rapier3d::plugin::{RapierConfiguration, TimestepMode};
+use bevy_xpbd_3d::resources::Gravity;
 use serde::{Deserialize, Serialize};
 
 use crate::input::InputAction;
@@ -14,14 +14,9 @@ impl Plugin for ConfigPlugin {
     }
 }
 
-fn read_config(mut commands: Commands, mut physics_config: ResMut<RapierConfiguration>) {
+fn read_config(mut commands: Commands) {
     let config = Config::new();
-    physics_config.gravity = -Vec3::Y * config.physics.gravity;
-    physics_config.timestep_mode = TimestepMode::Interpolated {
-        dt: 1.0 / 60.0,
-        substeps: 1,
-        time_scale: 1.0,
-    };
+    commands.insert_resource(Gravity(Vec3::NEG_Y * config.physics.gravity));
     commands.insert_resource(config);
 }
 

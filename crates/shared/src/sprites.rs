@@ -1,13 +1,13 @@
 use bevy::{
-    asset::{AssetLoader, BoxedFuture, LoadContext, io::Reader, AsyncReadExt},
+    asset::{io::Reader, AssetLoader, AsyncReadExt, BoxedFuture, LoadContext},
     prelude::*,
-    reflect::{TypeUuid, TypePath},
+    reflect::{TypePath, TypeUuid},
     utils::HashMap,
 };
-use bevy_rapier3d::prelude::*;
+use bevy_xpbd_3d::plugins::spatial_query::{SpatialQuery, SpatialQueryFilter};
 use serde::{Deserialize, Serialize};
 
-use crate::MainCamera;
+use crate::{physics::Layer, MainCamera};
 
 pub struct Sprite3dPlugin;
 
@@ -16,15 +16,11 @@ impl Plugin for Sprite3dPlugin {
         app.register_asset_loader(AnimationSetLoader)
             .init_asset::<AnimationSet>()
             .init_asset_loader::<AnimationSetLoader>()
-            .add_systems(PostUpdate, (
-                check_sequence,
-                rotate_sprites,
-                animate_sprites
-            ).chain())
-            .add_systems(Last, (
-                align_billboards,
-                project_blob_shadows
-            ));
+            .add_systems(
+                PostUpdate,
+                (check_sequence, rotate_sprites, animate_sprites).chain(),
+            )
+            .add_systems(Last, (align_billboards, project_blob_shadows));
     }
 }
 
@@ -232,7 +228,7 @@ fn align_billboards(
 pub struct BlobShadow;
 
 fn project_blob_shadows(
-    physics_context: Res<RapierContext>,
+    spatial_query: SpatialQuery,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut query: Query<(&mut GlobalTransform, &Handle<StandardMaterial>), With<BlobShadow>>,
 ) {
@@ -240,20 +236,20 @@ fn project_blob_shadows(
         if !transform.is_changed() {
             continue;
         }
-        if let Some((_entity, toi)) = physics_context.cast_ray(
+        if let Some(hit) = spatial_query.cast_ray(
             transform.translation(),
             -Vec3::Y,
             1.0,
             true,
-            QueryFilter::new().groups(CollisionGroups::new(Group::GROUP_1, Group::GROUP_1)),
+            SpatialQueryFilter::new().with_masks([Layer::Ground]),
         ) {
             let mut translation = transform.translation();
-            translation.y -= toi;
+            translation.y -= hit.time_of_impact;
             // Offset towards camera to avoid clipping through ground
             translation += Vec3::ONE * 0.01;
             *transform = GlobalTransform::from(Transform::from_translation(translation));
             if let Some(material) = materials.get_mut(material_handle) {
-                material.base_color = Color::rgba(0.0, 0.0, 0.0, 1.0 - toi);
+                material.base_color = Color::rgba(0.0, 0.0, 0.0, 1.0 - hit.time_of_impact);
             }
         }
     }

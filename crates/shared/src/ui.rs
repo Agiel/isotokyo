@@ -1,6 +1,6 @@
-use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, DiagnosticsStore};
+use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
-use bevy_rapier3d::prelude::Velocity;
+use bevy_xpbd_3d::components::LinearVelocity;
 
 use crate::player::LocalPlayer;
 
@@ -19,11 +19,7 @@ impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(FrameTimeDiagnosticsPlugin)
             .add_systems(Startup, setup_ui)
-            .add_systems(Update, (
-                update_fps,
-                update_speed,
-                max_speed
-            ));
+            .add_systems(Update, (update_fps, update_speed, max_speed));
     }
 }
 
@@ -90,29 +86,25 @@ fn update_fps(diagnostics: Res<DiagnosticsStore>, mut query: Query<&mut Text, Wi
 }
 
 fn update_speed(
-    player_query: Query<&Velocity, With<LocalPlayer>>,
+    player_query: Query<&LinearVelocity, With<LocalPlayer>>,
     mut query: Query<&mut Text, With<Speedometer>>,
 ) {
     for mut text in query.iter_mut() {
         if let Ok(velocity) = player_query.get_single() {
-            let mut velocity = *velocity;
-            velocity.linvel.y = 0.0;
             // Update the value of the second section
-            text.sections[1].value = format!("{:.2}", velocity.linvel.length());
+            text.sections[1].value = format!("{:.2}", velocity.xz().length());
         }
     }
 }
 
 fn max_speed(
-    player_query: Query<&Velocity, With<LocalPlayer>>,
+    player_query: Query<&LinearVelocity, With<LocalPlayer>>,
     mut query: Query<(&mut Text, &mut MaxSpeed), With<MaxSpeed>>,
 ) {
     for (mut text, mut max_speed) in query.iter_mut() {
         if let Ok(velocity) = player_query.get_single() {
-            let mut velocity = *velocity;
-            velocity.linvel.y = 0.0;
-            if velocity.linvel.length() > max_speed.0 {
-                max_speed.0 = velocity.linvel.length();
+            if velocity.xz().length() > max_speed.0 {
+                max_speed.0 = velocity.xz().length();
                 // Update the value of the second section
                 text.sections[1].value = format!("{:.2}", max_speed.0);
             }

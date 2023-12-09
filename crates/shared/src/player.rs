@@ -5,14 +5,24 @@ use crate::networking::MostRecentTick;
 use crate::networking::NetworkMapping;
 use crate::networking::Player;
 use crate::networking::PlayerInfo;
+use crate::physics::Layer;
 use crate::sprites::*;
 use crate::MainCamera;
-use bevy::prelude::*;
 use bevy::prelude::shape::Icosphere;
 use bevy::prelude::shape::Plane;
+use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
-use bevy_rapier3d::prelude::*;
 use bevy_renet::renet::ClientId;
+use bevy_xpbd_3d::components::CoefficientCombine;
+use bevy_xpbd_3d::components::Collider;
+use bevy_xpbd_3d::components::CollisionLayers;
+use bevy_xpbd_3d::components::Friction;
+use bevy_xpbd_3d::components::LinearVelocity;
+use bevy_xpbd_3d::components::LockedAxes;
+use bevy_xpbd_3d::components::RigidBody;
+use bevy_xpbd_3d::plugins::spatial_query::SpatialQuery;
+use bevy_xpbd_3d::plugins::spatial_query::SpatialQueryFilter;
+use bevy_xpbd_3d::resources::Gravity;
 use serde::{Deserialize, Serialize};
 
 pub struct ClientPlayerPlugin;
@@ -49,10 +59,13 @@ fn setup_player(
     // Crosshair
     commands
         .spawn(PbrBundle {
-            mesh: meshes.add(Mesh::try_from(Icosphere {
-                radius: 0.05,
-                ..default()
-            }).unwrap()),
+            mesh: meshes.add(
+                Mesh::try_from(Icosphere {
+                    radius: 0.05,
+                    ..default()
+                })
+                .unwrap(),
+            ),
             material: materials.add(StandardMaterial {
                 base_color: Color::WHITE,
                 unlit: true,
@@ -106,14 +119,14 @@ pub fn client_spawn_players(
         });
         player
             .insert(Player { id: spawn.id })
-            .insert(Collider::capsule_y(0.25, 0.25))
-            .insert(CollisionGroups::new(Group::GROUP_2, Group::all()))
-            .insert(Velocity::default())
+            // .insert(RigidBody::Dynamic)
+            .insert(Collider::capsule(0.5, 0.25))
+            .insert(CollisionLayers::new(
+                [Layer::Player],
+                [Layer::Enemy, Layer::Ground],
+            ))
             .insert(LockedAxes::ROTATION_LOCKED)
-            .insert(Friction {
-                coefficient: 0.0,
-                combine_rule: CoefficientCombineRule::Min,
-            })
+            .insert(Friction::new(0.0).with_combine_rule(CoefficientCombine::Min))
             .insert(IsGrounded(true))
             .with_children(|parent| {
                 // Sprite
@@ -213,10 +226,10 @@ pub fn player_input(
 
         let (camera, camera_transform) = cam_query.single();
         if let Some(cursor_pos) = primary_window.single().cursor_position() {
-        if let Some(ray) = camera.viewport_to_world(camera_transform, cursor_pos) {
-            player_input.aim_ray = ray;
+            if let Some(ray) = camera.viewport_to_world(camera_transform, cursor_pos) {
+                player_input.aim_ray = ray;
+            }
         }
-    }
     }
 }
 
@@ -235,14 +248,14 @@ pub fn update_crosshair(
 
 pub fn player_move(
     config: Res<Config>,
-    physics_config: Res<RapierConfiguration>,
-    physics_context: Res<RapierContext>,
+    gravity: Res<Gravity>,
+    spatial_query: SpatialQuery,
     time: Res<Time>,
     mut query: Query<
         (
             &mut PlayerInput,
             &mut IsGrounded,
-            &mut Velocity,
+            &mut LinearVelocity,
             &mut Transform,
         ),
         With<Player>,
@@ -251,13 +264,16 @@ pub fn player_move(
     for (mut player_input, mut is_grounded, mut velocity, mut transform) in query.iter_mut() {
         rotate(&mut transform, &player_input.aim_ray);
 
-        is_grounded.0 = check_grounded(&transform, &physics_context);
+        is_grounded.0 = check_grounded(&transform, &spatial_query);
 
-        if is_grounded.0 && player_input.jump {
-            player_input.jump = false;
-            is_grounded.0 = false;
-            velocity.linvel.y =
-                (2.0 * config.physics.jump_height * -physics_config.gravity.y).sqrt();
+        if is_grounded.0 {
+            if player_input.jump {
+                player_input.jump = false;
+                is_grounded.0 = false;
+                velocity.y = (2.0 * config.physics.jump_height * -gravity.0.y).sqrt();
+            } else {
+                velocity.y = 0.0;
+            }
         }
 
         friction(&mut velocity, is_grounded.0, &config, time.delta_seconds());
@@ -286,13 +302,13 @@ fn rotate(transform: &mut Transform, aim_ray: &Ray) {
     }
 }
 
-fn check_grounded(transform: &Transform, physics_context: &RapierContext) -> bool {
-    if let Some((_entity, _toi)) = physics_context.cast_ray(
+fn check_grounded(transform: &Transform, spatial_query: &SpatialQuery) -> bool {
+    if let Some(_hit) = spatial_query.cast_ray(
         transform.translation,
         -Vec3::Y,
-        0.5,
+        0.6, // TODO: Magic number. Would be better to use collision events?
         true,
-        QueryFilter::new().groups(CollisionGroups::new(Group::GROUP_1, Group::GROUP_1)),
+        SpatialQueryFilter::new().with_masks([Layer::Ground]),
     ) {
         return true;
     }
@@ -300,8 +316,8 @@ fn check_grounded(transform: &Transform, physics_context: &RapierContext) -> boo
     false
 }
 
-fn friction(velocity: &mut Velocity, is_grounded: bool, config: &Config, delta_time: f32) {
-    let current_speed = velocity.linvel.length();
+fn friction(velocity: &mut LinearVelocity, is_grounded: bool, config: &Config, delta_time: f32) {
+    let current_speed = velocity.length();
     if current_speed == 0.0 {
         return;
     }
@@ -315,11 +331,11 @@ fn friction(velocity: &mut Velocity, is_grounded: bool, config: &Config, delta_t
     // TODO: Use stop_speed instead of walk_speed?
     let drop = current_speed.max(config.physics.ground_speed) * friction * delta_time;
     let new_speed = (current_speed - drop).max(0.0);
-    velocity.linvel *= new_speed / current_speed;
+    **velocity *= new_speed / current_speed;
 }
 
 fn accelerate(
-    velocity: &mut Velocity,
+    velocity: &mut LinearVelocity,
     wish_dir: Vec3,
     wish_speed: f32,
     is_grounded: bool,
@@ -331,7 +347,7 @@ fn accelerate(
     } else {
         wish_speed
     };
-    let current_speed = velocity.linvel.dot(wish_dir);
+    let current_speed = velocity.dot(wish_dir);
     let add_speed = wsh_speed - current_speed;
     if add_speed <= 0.0 {
         return;
@@ -345,18 +361,18 @@ fn accelerate(
 
     let accel_speed = add_speed.min(accel * wish_speed * delta_time);
 
-    velocity.linvel += wish_dir * accel_speed;
+    **velocity += wish_dir * accel_speed;
 }
 
 pub fn update_sequence(
     mut query: Query<(&mut Sequence, &Parent), Without<Player>>,
-    p_query: Query<(&IsGrounded, &Velocity), With<Player>>,
+    p_query: Query<(&IsGrounded, &LinearVelocity), With<Player>>,
 ) {
     for (mut sequence, parent) in query.iter_mut() {
         if let Ok((is_grounded, velocity)) = p_query.get(parent.get()) {
             let new_sequence = if !is_grounded.0 {
                 Sequence::Jump
-            } else if velocity.linvel.length() > f32::EPSILON {
+            } else if velocity.xz().length() > f32::EPSILON {
                 Sequence::Walk
             } else {
                 Sequence::Idle
@@ -385,8 +401,7 @@ pub fn camera_follow_player(
         let camera_offset = Vec3::ONE * 6.0;
         let mut translation = player_transform.translation;
         translation.y = 0.0;
-        transform.translation = translation
-            + (crosshair_transform.translation - translation) / 6.0
-            + camera_offset;
+        transform.translation =
+            translation + (crosshair_transform.translation - translation) / 6.0 + camera_offset;
     }
 }

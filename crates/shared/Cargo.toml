@@ -8,8 +8,8 @@ workspace = "../.."
 [dependencies]
 anyhow = "1"
 bevy = { workspace = true }
-bevy_rapier3d = { workspace = true }
 bevy_renet = { workspace = true }
+bevy_xpbd_3d = { workspace = true }
 rand = "0.8"
 ron = "0.8.0"
-serde = { version = "1", features = [ "derive" ] }
+serde = { version = "1", features = ["derive"] }

@@ -1,12 +1,17 @@
 pub mod config;
 pub mod input;
-pub mod player;
 pub mod networking;
+pub mod physics;
+pub mod player;
 pub mod sprites;
 pub mod ui;
 
-use bevy::{prelude::{*, shape::Plane}, render::camera::ScalingMode};
-use bevy_rapier3d::prelude::*;
+use bevy::{
+    prelude::{shape::Plane, *},
+    render::camera::ScalingMode,
+};
+use bevy_xpbd_3d::components::{Collider, CollisionLayers, RigidBody};
+use physics::Layer;
 use rand::{Rng, SeedableRng};
 use sprites::*;
 
@@ -22,7 +27,8 @@ pub fn setup_camera(mut commands: Commands) {
             scaling_mode: ScalingMode::WindowSize(1.0),
             scale: 1.0 / 64.0,
             ..default()
-        }.into(),
+        }
+        .into(),
         ..default()
     };
     camera.transform = Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y);
@@ -62,12 +68,12 @@ pub fn generate_map(
     // Ground collider
     commands
         .spawn(TransformBundle::from(Transform::from_xyz(-0.5, -0.1, -0.5)))
-        .insert(Collider::cuboid(
-            (MAP_SIZE / 2) as f32,
-            0.1,
-            (MAP_SIZE / 2) as f32,
-        ))
-        .insert(CollisionGroups::new(Group::GROUP_1, Group::all()));
+        .insert(RigidBody::Static)
+        .insert(Collider::cuboid(MAP_SIZE as f32, 0.2, MAP_SIZE as f32))
+        .insert(CollisionLayers::new(
+            [Layer::Ground],
+            [Layer::Enemy, Layer::Player],
+        ));
 
     // Light
     commands.insert_resource(AmbientLight {
@@ -143,11 +149,18 @@ pub fn generate_map(
     for _ in 0..32 {
         let x = rng.gen::<f32>() * MAP_SIZE as f32 - (MAP_SIZE / 2) as f32;
         let z = rng.gen::<f32>() * MAP_SIZE as f32 - (MAP_SIZE / 2) as f32;
-        commands.spawn(PbrBundle {
-            mesh: mesh_handle.clone(),
-            material: material_handle.clone(),
-            transform: Transform::from_xyz(x, 0.5, z),
-            ..default()
-        }).insert(Collider::cuboid(0.5, 0.5, 0.5));
+        commands
+            .spawn(PbrBundle {
+                mesh: mesh_handle.clone(),
+                material: material_handle.clone(),
+                transform: Transform::from_xyz(x, 0.5, z),
+                ..default()
+            })
+            .insert(RigidBody::Static)
+            .insert(Collider::cuboid(1.0, 1.0, 1.0))
+            .insert(CollisionLayers::new(
+                [Layer::Ground],
+                [Layer::Enemy, Layer::Player],
+            ));
     }
 }
