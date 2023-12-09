@@ -11,13 +11,14 @@ use bevy_renet::{
     RenetServerPlugin,
 };
 use bevy_xpbd_3d::{
-    components::{
-        CoefficientCombine, Collider, CollisionLayers, Friction, LinearVelocity, LockedAxes,
-        RigidBody,
-    },
+    components::LinearVelocity,
     plugins::{PhysicsDebugPlugin, PhysicsPlugins},
 };
-use isotokyo::{config, generate_map, networking::NetworkedEntities, physics::Layer, player};
+use isotokyo::{
+    config, generate_map,
+    networking::NetworkedEntities,
+    player::{self, server_spawn_player},
+};
 use isotokyo::{
     networking::{
         connection_config, ClientChannel, Player, PlayerCommand, ServerChannel, ServerMessages,
@@ -137,30 +138,13 @@ fn server_update_system(
 
                 // Spawn new player
                 let transform = Transform::from_xyz(0.0, 0.51, 0.0);
-                let player_entity = commands
-                    .spawn(PbrBundle {
-                        mesh: meshes.add(Mesh::from(shape::Capsule {
-                            depth: 0.5,
-                            radius: 0.25,
-                            ..default()
-                        })),
-                        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
-                        transform,
-                        ..Default::default()
-                    })
-                    .insert(RigidBody::Dynamic)
-                    // .insert(TransformInterpolation::default())
-                    .insert(LockedAxes::ROTATION_LOCKED)
-                    .insert(Collider::capsule(0.5, 0.25))
-                    .insert(CollisionLayers::new(
-                        [Layer::Player],
-                        [Layer::Enemy, Layer::Ground],
-                    ))
-                    .insert(Friction::new(0.0).with_combine_rule(CoefficientCombine::Min))
-                    .insert(PlayerInput::default())
-                    .insert(player::IsGrounded(true))
-                    .insert(Player { id: *client_id })
-                    .id();
+                let player_entity = server_spawn_player(
+                    &mut commands,
+                    &mut materials,
+                    &mut meshes,
+                    *client_id,
+                    transform,
+                );
 
                 lobby.players.insert(*client_id, player_entity);
 

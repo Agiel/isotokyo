@@ -19,6 +19,7 @@ use bevy_xpbd_3d::components::CollisionLayers;
 use bevy_xpbd_3d::components::Friction;
 use bevy_xpbd_3d::components::LinearVelocity;
 use bevy_xpbd_3d::components::LockedAxes;
+use bevy_xpbd_3d::components::Restitution;
 use bevy_xpbd_3d::components::RigidBody;
 use bevy_xpbd_3d::plugins::spatial_query::SpatialQuery;
 use bevy_xpbd_3d::plugins::spatial_query::SpatialQueryFilter;
@@ -90,6 +91,40 @@ pub struct LocalPlayer;
 #[derive(Component)]
 pub struct IsGrounded(pub bool);
 
+pub fn server_spawn_player(
+    commands: &mut Commands,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    client_id: ClientId,
+    transform: Transform,
+) -> Entity {
+    commands
+        .spawn(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Capsule {
+                depth: 0.5,
+                radius: 0.25,
+                ..default()
+            })),
+            material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
+            transform,
+            ..Default::default()
+        })
+        .insert(RigidBody::Dynamic)
+        // .insert(TransformInterpolation::default())
+        .insert(LockedAxes::ROTATION_LOCKED)
+        .insert(Collider::capsule(0.5, 0.25))
+        .insert(CollisionLayers::new(
+            [Layer::Player],
+            [Layer::Enemy, Layer::Ground],
+        ))
+        .insert(Friction::new(0.0).with_combine_rule(CoefficientCombine::Min))
+        .insert(Restitution::new(0.0).with_combine_rule(CoefficientCombine::Min))
+        .insert(PlayerInput::default())
+        .insert(IsGrounded(true))
+        .insert(Player { id: client_id })
+        .id()
+}
+
 pub fn client_spawn_players(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -127,6 +162,7 @@ pub fn client_spawn_players(
             ))
             .insert(LockedAxes::ROTATION_LOCKED)
             .insert(Friction::new(0.0).with_combine_rule(CoefficientCombine::Min))
+            .insert(Restitution::new(0.0).with_combine_rule(CoefficientCombine::Min))
             .insert(IsGrounded(true))
             .with_children(|parent| {
                 // Sprite
@@ -266,14 +302,10 @@ pub fn player_move(
 
         is_grounded.0 = check_grounded(&transform, &spatial_query);
 
-        if is_grounded.0 {
-            if player_input.jump {
-                player_input.jump = false;
-                is_grounded.0 = false;
-                velocity.y = (2.0 * config.physics.jump_height * -gravity.0.y).sqrt();
-            } else {
-                velocity.y = 0.0;
-            }
+        if is_grounded.0 && player_input.jump {
+            player_input.jump = false;
+            is_grounded.0 = false;
+            velocity.y = (2.0 * config.physics.jump_height * -gravity.0.y).sqrt();
         }
 
         friction(&mut velocity, is_grounded.0, &config, time.delta_seconds());
